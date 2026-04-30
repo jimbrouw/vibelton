@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vibelton</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">Ableton Live Copilot</p>
+            <h1>Vibelton</h1>
+            <p class="tagline">Snowball from zero.</p>
+          </div>
+          <div class="hero-actions">
+            <div class="mode-toggle" id="modeToggle">
+              <button data-mode="idea" class="active">Idea Engine</button>
+              <button data-mode="finisher">The Finisher</button>
+            </div>
+            <div class="status" id="status">
+              <span></span>
+              <b>Waiting for Live</b>
+            </div>
+          </div>
+        </header>
+
+        <section class="command-bar" aria-label="Prompt search and filters">
+          <label class="search-field" for="search">
+            <span>Search</span>
+            <input id="search" type="search" placeholder="drums, 140 BPM, ambient, mix cleanup..." autocomplete="off" />
+          </label>
+          <div class="quick-fields">
+            <label>
+              <span>Genre</span>
+              <select id="genre">
+                <option value="">Any style</option>
+                <option>Dance and Mainstage</option>
+                <option>Downtempo</option>
+                <option>Drum n Bass</option>
+                <option>Hip Hop</option>
+                <option>House</option>
+                <option>90s Jungle</option>
+                <option>Modern Pop</option>
+                <option>Reggae and Dance Hall</option>
+                <option>Reggaeton</option>
+                <option>Rock and Country</option>
+                <option>Techno</option>
+                <option>Trance</option>
+                <option>Trap</option>
+                <option>Ambient Cinematic</option>
+                <option>Hyperpop</option>
+                <option>UK Garage</option>
+              </select>
+            </label>
+            <label>
+              <span>BPM</span>
+              <input id="bpm" inputmode="numeric" placeholder="125" />
+            </label>
+            <label>
+              <span>Key</span>
+              <input id="key" placeholder="A minor" />
+            </label>
+            <label>
+              <span>Mood</span>
+              <input id="mood" placeholder="dark" />
+            </label>
+            <label>
+              <span>Reference</span>
+              <input id="reference" placeholder="song, artist, or scene" />
+            </label>
+          </div>
+        </section>
+
+        <nav class="tabs" id="tabs" aria-label="Prompt categories"></nav>
+
+        <section class="library">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow" id="activeMeta">Arrangement prompts</p>
+              <h2 id="activeTitle">Build the structure fast</h2>
+            </div>
+            <p id="resultCount">0 prompts</p>
+          </div>
+          <div class="prompt-grid" id="promptGrid"></div>
+        </section>
+      </section>
+
+      <aside class="copilot-panel">
+        <section class="editor-card">
+          <div class="editor-head">
+            <div>
+              <p class="eyebrow">Editable Prompt</p>
+              <h2>Send to Ableton</h2>
+            </div>
+            <button class="ghost-button" id="clearPrompt" type="button">Clear</button>
+          </div>
+
+          <form class="composer" id="composer">
+            <label for="prompt">Prompt text</label>
+            <textarea id="prompt" rows="11" placeholder="Pick an idea, shape it, then send it to Ableton."></textarea>
+            <div class="actions">
+              <button class="secondary-button make-song-button" id="makeSongPrompt" type="button">Make Song Prompt</button>
+              <button class="secondary-button" id="copyPrompt" type="button">Copy</button>
+              <button class="primary-button" type="submit">Send to Ableton</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel-section">
+          <h2>Live Status</h2>
+          <dl id="liveState">
+            <div><dt>Connection</dt><dd>Unknown</dd></div>
+            <div><dt>Tempo</dt><dd>Unknown</dd></div>
+            <div><dt>Tracks</dt><dd>Unknown</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel-section">
+          <h2>Recent Sends</h2>
+          <div class="messages" id="messages">
+            <article class="message assistant">
+              <p>Choose an idea to load it here. Sending uses the local Vibelton server.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h2>Bridge Events</h2>
+          <ol class="events" id="events"></ol>
+        </section>
+      </aside>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
