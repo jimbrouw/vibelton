@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "status": "manual-load-placeholders",
+  "notes": "Ableton Live browser loading for local .adv files is unverified. Use these entries as the Stage 1.5 target list.",
+  "chains": [
+    {
+      "id": "house_techno_kick_main",
+      "genre_family": "house/techno",
+      "role": "kick",
+      "energy": "main",
+      "path": "device_chains/house_techno/kick_main.adv",
+      "manual_load": "Use a tight 909-style kick chain with light saturation and short decay."
+    },
+    {
+      "id": "house_techno_bass_main",
+      "genre_family": "house/techno",
+      "role": "bass",
+      "energy": "main",
+      "path": "device_chains/house_techno/bass_main.adv",
+      "manual_load": "Use a warm sub or Drift/Operator bass with low-pass movement."
+    },
+    {
+      "id": "house_techno_pad_break",
+      "genre_family": "house/techno",
+      "role": "pad",
+      "energy": "break",
+      "path": "device_chains/house_techno/pad_break.adv",
+      "manual_load": "Use Wavetable or Meld with wide chorus and filtered highs."
+    },
+    {
+      "id": "house_techno_lead_hook",
+      "genre_family": "house/techno",
+      "role": "lead",
+      "energy": "main",
+      "path": "device_chains/house_techno/lead_hook.adv",
+      "manual_load": "Use a short pluck or stab with delay send kept moderate."
+    },
+    {
+      "id": "house_techno_keys_main",
+      "genre_family": "house/techno",
+      "role": "keys",
+      "energy": "main",
+      "path": "device_chains/house_techno/keys_main.adv",
+      "manual_load": "Use Electric or Wavetable chord stabs with short envelope."
+    },
+    {
+      "id": "hiphop_lofi_kick_main",
+      "genre_family": "hip-hop/lo-fi",
+      "role": "kick",
+      "energy": "main",
+      "path": "device_chains/hiphop_lofi/kick_main.adv",
+      "manual_load": "Use a round kick with soft clipping and less top-end click."
+    },
+    {
+      "id": "hiphop_lofi_bass_main",
+      "genre_family": "hip-hop/lo-fi",
+      "role": "bass",
+      "energy": "main",
+      "path": "device_chains/hiphop_lofi/bass_main.adv",
+      "manual_load": "Use a clean sub or 808-style bass with controlled sustain."
+    },
+    {
+      "id": "hiphop_lofi_pad_break",
+      "genre_family": "hip-hop/lo-fi",
+      "role": "pad",
+      "energy": "break",
+      "path": "device_chains/hiphop_lofi/pad_break.adv",
+      "manual_load": "Use a dusty pad with vinyl-style noise and gentle filtering."
+    },
+    {
+      "id": "hiphop_lofi_lead_hook",
+      "genre_family": "hip-hop/lo-fi",
+      "role": "lead",
+      "energy": "main",
+      "path": "device_chains/hiphop_lofi/lead_hook.adv",
+      "manual_load": "Use a mellow lead, mallet, or short sampled-key texture."
+    },
+    {
+      "id": "hiphop_lofi_keys_main",
+      "genre_family": "hip-hop/lo-fi",
+      "role": "keys",
+      "energy": "main",
+      "path": "device_chains/hiphop_lofi/keys_main.adv",
+      "manual_load": "Use Electric or piano with reduced highs and subtle drive."
+    },
+    {
+      "id": "dnb_ukg_kick_main",
+      "genre_family": "dnb/ukg",
+      "role": "kick",
+      "energy": "main",
+      "path": "device_chains/dnb_ukg/kick_main.adv",
+      "manual_load": "Use a punchy short kick that leaves room for sub bass."
+    },
+    {
+      "id": "dnb_ukg_bass_main",
+      "genre_family": "dnb/ukg",
+      "role": "bass",
+      "energy": "main",
+      "path": "device_chains/dnb_ukg/bass_main.adv",
+      "manual_load": "Use Reese or clean sub chain depending on prompt intensity."
+    },
+    {
+      "id": "dnb_ukg_pad_break",
+      "genre_family": "dnb/ukg",
+      "role": "pad",
+      "energy": "break",
+      "path": "device_chains/dnb_ukg/pad_break.adv",
+      "manual_load": "Use an atmospheric pad with high-pass filtering and width."
+    },
+    {
+      "id": "dnb_ukg_lead_hook",
+      "genre_family": "dnb/ukg",
+      "role": "lead",
+      "energy": "main",
+      "path": "device_chains/dnb_ukg/lead_hook.adv",
+      "manual_load": "Use a vocal-like pluck or bright stab with tight delay."
+    },
+    {
+      "id": "dnb_ukg_keys_main",
+      "genre_family": "dnb/ukg",
+      "role": "keys",
+      "energy": "main",
+      "path": "device_chains/dnb_ukg/keys_main.adv",
+      "manual_load": "Use syncopated chord stabs with short release."
+    }
+  ]
+}

@@ -72,12 +72,6 @@ class AbletonCopilot(ControlSurface):
             self._set_scene_name(action)
         elif action_type == "create_midi_clip":
             self._create_midi_clip(action)
-        elif action_type == "duplicate_track":
-            self._duplicate_track(action.get("track_name"))
-        elif action_type == "mute_track":
-            track = self._find_track(action.get("track_name"))
-            if track:
-                track.mute = True
         elif action_type == "copy_session_to_arrangement":
             self._copy_session_to_arrangement(action)
         elif action_type == "load_stock_instruments":
@@ -192,20 +186,6 @@ class AbletonCopilot(ControlSurface):
         track.name = name
         return track
 
-    def _duplicate_track(self, name):
-        track = self._find_track(name, required=False)
-        if not track:
-            self._log("error", "Cannot duplicate missing track: %s" % name)
-            return
-        try:
-            index = list(self.song().tracks).index(track)
-            self.song().duplicate_track(index)
-            # Rename the newly duplicated track (typically placed at index + 1)
-            new_track = self.song().tracks[index + 1]
-            new_track.name = "%s Copy" % name
-        except Exception as exc:
-            self._log("error", "Failed to duplicate track: %s" % exc)
-
     def _create_audio_track(self, name):
         track = self._find_track(name, required=False)
         if track:
@@ -318,9 +298,17 @@ class AbletonCopilot(ControlSurface):
         return None
 
     def _db_to_amp(self, db):
-        if db <= -70:
+        if db <= -70.0:
             return 0.0
-        return max(0.0, min(1.0, math.pow(10.0, db / 20.0)))
+        if db >= 6.0:
+            return 1.0
+        # Calibrated cubic polynomial fader curve mapping for Ableton Live fader
+        val = (1.3344569750529607e-06 * (db ** 3) +
+               0.000246703214432097 * (db ** 2) +
+               0.022915085718092733 * db +
+               0.8519213998572046)
+        return max(0.0, min(1.0, val))
+
 
     def _ensure_files(self):
         if not os.path.exists(QUEUE_DIR):

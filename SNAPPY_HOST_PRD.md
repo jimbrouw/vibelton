@@ -4,7 +4,7 @@
 
 Build a clean-room audio plugin host inspired by the general workflow of snapshot-based plugin control tools. Do not reverse engineer, copy, decompile, inspect, or reproduce proprietary binaries, UI, text, presets, protocols, assets, or private behavior from any commercial plugin.
 
-The product should be an original VST3/AU-capable host plugin and companion control layer that can load a third-party VST3/AU plugin, expose its parameters, store snapshots, morph between snapshots, randomize safely, and allow external control from the existing Ableton Copilot V2 app.
+The product should be an original VST3/AU-capable host plugin and companion control layer that can load a third-party VST3/AU plugin, expose its parameters, store snapshots, morph between snapshots, randomize safely, and allow external control from the existing Vibelton V2 app.
 
 Use public SDKs and documentation only. Prefer JUCE with CMake for the first implementation because it provides cross-platform audio plugin scaffolding, plugin scanning, plugin hosting primitives, state management, and UI components.
 
@@ -37,7 +37,7 @@ Producers often have powerful plugins with too many parameters. They need a fast
 
 - Electronic music producers using Ableton Live.
 - Producers who want rapid sound-design exploration.
-- Users of the existing Ableton Copilot V2 app who want AI-assisted plugin control.
+- Users of the existing Vibelton V2 app who want AI-assisted plugin control.
 
 ## V1 Scope
 
@@ -97,7 +97,7 @@ Producers often have powerful plugins with too many parameters. They need a fast
 
 ### External Control API
 
-- Provide a local control interface for Ableton Copilot V2.
+- Provide a local control interface for Vibelton V2.
 - Start with localhost HTTP or WebSocket.
 - Later option: MCP-style tool interface.
 - Required commands:
@@ -123,7 +123,7 @@ Producers often have powerful plugins with too many parameters. They need a fast
 - Automation lane helpers.
 - AI-readable parameter summaries.
 - Safer loudness monitoring.
-- Bridge directly into Ableton Copilot V2 command planning.
+- Bridge directly into Vibelton V2 command planning.
 
 ## Technical Architecture
 
@@ -190,12 +190,12 @@ Ableton MIDI/audio
 }
 ```
 
-## Ableton Copilot V2 Integration
+## Vibelton V2 Integration
 
 Add a backend connector in the existing Python app:
 
 ```text
-ableton_copilot/
+vibelton/
   snaphost_client.py
 ```
 
@@ -350,10 +350,10 @@ Acceptance criteria:
 
 Acceptance criteria:
 
-- Existing Ableton Copilot V2 backend can query SnapHost status.
+- Existing Vibelton V2 backend can query SnapHost status.
 - Existing app can trigger randomize/save/recall/morph commands.
 
-### Phase 8: Ableton Copilot V2 UI
+### Phase 8: Vibelton V2 UI
 
 - Add SnapHost status card.
 - Add sound-design command routing.
@@ -387,7 +387,7 @@ Acceptance criteria:
 - Saves and recalls hosted plugin snapshots.
 - Morphs between snapshots without obvious stepping.
 - Randomizes parameters while respecting locks.
-- Receives at least one command from Ableton Copilot V2.
+- Receives at least one command from Vibelton V2.
 - Project can be reopened with hosted plugin and snapshots restored.
 
 ## First Development Task

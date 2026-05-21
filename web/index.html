@@ -18,7 +18,8 @@
           </div>
           <div class="hero-actions">
             <div class="mode-toggle" id="modeToggle">
-              <button data-mode="idea" class="active">Idea Engine</button>
+              <button data-mode="inspiration" class="active">Inspiration</button>
+              <button data-mode="songmaker">Song Maker</button>
               <button data-mode="finisher">The Finisher</button>
             </div>
             <div class="status" id="status">
@@ -110,6 +111,56 @@
           </form>
         </section>
 
+        <section class="panel-section vst-settings" id="vstSettingsPanel">
+          <details id="vstSettingsDetails" open>
+            <summary>
+              <h2>&#127929; VST Instruments</h2>
+            </summary>
+            <p class="vst-hint">Choose which VST to use for each track role when the Finisher builds your arrangement.</p>
+            <div class="vst-roles" id="vstRoles">
+              <label class="vst-role-row">
+                <span class="vst-role-name">Pad</span>
+                <select id="vstPad" data-role="pad"><option value="">Stock Ableton</option></select>
+              </label>
+              <label class="vst-role-row">
+                <span class="vst-role-name">Bass</span>
+                <select id="vstBass" data-role="bass"><option value="">Stock Ableton</option></select>
+              </label>
+              <label class="vst-role-row">
+                <span class="vst-role-name">Lead / Melody</span>
+                <select id="vstLead" data-role="lead"><option value="">Stock Ableton</option></select>
+              </label>
+              <label class="vst-role-row">
+                <span class="vst-role-name">Chords / Keys</span>
+                <select id="vstChords" data-role="chords"><option value="">Stock Ableton</option></select>
+              </label>
+              <label class="vst-role-row">
+                <span class="vst-role-name">FX / Ambient</span>
+                <select id="vstFX" data-role="fx"><option value="">Stock Ableton</option></select>
+              </label>
+              <label class="vst-role-row">
+                <span class="vst-role-name">Drums</span>
+                <select id="vstDrums" data-role="drums"><option value="">Stock Ableton</option></select>
+              </label>
+            </div>
+            <p class="vst-status" id="vstStatus">Scanning plugins...</p>
+
+            <div class="vst-explorer-section">
+              <div class="vst-explorer-header">
+                <h3>🔍 VST Plugin Explorer</h3>
+                <button type="button" class="explorer-toggle-btn" id="toggleVstExplorerBtn">Show Scanned Plugins</button>
+              </div>
+              <div class="vst-explorer-body hidden" id="vstExplorerBody">
+                <input type="text" id="vstSearchInput" class="vst-search-input" placeholder="Search scanned VSTs..." />
+                <p class="vst-explorer-hint">Right-click a VST (or click its star ⭐) to toggle it as Favorite.</p>
+                <ul class="vst-plugin-list" id="vstPluginList">
+                  <!-- Dynamically populated in app.js -->
+                </ul>
+              </div>
+            </div>
+          </details>
+        </section>
+
         <section class="panel-section">
           <h2>Live Status</h2>
           <dl id="liveState">
@@ -134,6 +185,11 @@
         </section>
       </aside>
     </main>
+
+    <div id="vstContextMenu" class="vst-context-menu hidden">
+      <button type="button" id="contextFavAction">⭐ Toggle Favorite</button>
+    </div>
+
     <script src="/app.js"></script>
   </body>
 </html>

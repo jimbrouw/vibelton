@@ -1,12 +1,5 @@
 const promptLibrary = [
   {
-    id: "song-finder",
-    name: "Song Maker",
-    meta: "Inspiration builder",
-    title: "Shape a track from ideas",
-    prompts: [],
-  },
-  {
     id: "arrangement",
     name: "Arrangement",
     meta: "Arrangement prompts",
@@ -15,87 +8,87 @@ const promptLibrary = [
       {
         label: "Dance Mainstage",
         tags: ["dance", "mainstage", "festival"],
-        text: "Create an expanded Dance and Mainstage arrangement with intro, tension build, hands-up pre-drop, main drop, breakdown, second build, final drop, and outro. Use dedicated tracks for chords, pad, riff, hook, bass, kick, hats, snare / clap, percussion, and ambience.",
+        text: "Create an expanded Dance and Mainstage arrangement with euphoric chord progressions, massive tension builds, hands-up pre-drop, a pounding main drop, atmospheric breakdown, massive second build, final drop, and outro. Features parallel chord lock, driving four-on-the-floor energy, and separate tracks for chords, pad, riff, hook, bass, kick, hats, snare / clap, percussion, and ambience.",
       },
       {
         label: "Downtempo",
         tags: ["downtempo", "chill", "arrangement"],
-        text: "Create an expanded Downtempo arrangement with a soft texture intro, groove entrance, melodic theme, stripped middle section, warm return, and slow outro. Keep the drums relaxed and leave space for pad, ambience, bass, riff, and hook details.",
+        text: "Create an expanded Downtempo arrangement featuring lush, jazzy, neo-soul chord voicings, a soft texture intro, relaxed groove entrance, warm melodic themes, stripped middle breakdown, organic return, and slow fading outro. Keeps the drum patterns laid-back and syncopated, leaving spacious room for warm pads, ambient textures, deep bass, and elegant riffs.",
       },
       {
         label: "Drum n Bass",
         tags: ["drum n bass", "breaks", "172 bpm"],
-        text: "Create an expanded Drum n Bass arrangement with atmospheric intro, drum tease, bass drop, rolling section, breakdown, second drop, high-energy final section, and outro. Use separate tracks for kick, snare / clap, hats, percussion, bass, pad, riff, hook, and ambience.",
+        text: "Create an expanded 172 BPM Drum n Bass arrangement featuring a dark atmospheric intro, rolling sub / Reese basslines, fast breakbeat drum rolls, building snare risers, melodic drops, breakdowns, and high-energy final sections. Uses separate tracks for kick, snare / clap, busy hats, syncopated ghost percussion, bass, pad, riff, hook, and ambience.",
       },
       {
         label: "Hip Hop",
         tags: ["hip hop", "verse", "hook"],
-        text: "Create an expanded Hip Hop arrangement with intro, verse, hook, verse two, hook, bridge or breakdown, final hook, and outro. Keep it vocal-friendly while building dedicated chords, pad, riff, hook, bass, kick, hats, snare / clap, percussion, and ambience parts.",
+        text: "Create an expanded Hip Hop arrangement with classic 90 BPM boom-bap elements, dusty soulful chord structures, intro, verse, hook, verse two, emotional bridge, final hook, and clean outro. Keep the track vocal-friendly with solid low-end pocket bass, crisp snare / clap, organic percussion shuffles, and distinct chords, pad, riff, hook, and ambient soundscapes.",
       },
       {
         label: "House",
         tags: ["house", "club", "125 bpm"],
-        text: "Create an expanded House arrangement with DJ intro, groove foundation, bass entrance, first drop, breakdown, second build, main drop, and extended outro. Use separate kick, clap, hats, percussion, bass, chords, pad, riff, hook, and ambience tracks.",
+        text: "Create an expanded House arrangement featuring classic 125 BPM four-on-the-floor kick grids, driving offbeat open hi-hats, bouncy syncopated basslines, parallel chord motion, DJ-friendly intro/outro, a main drop, and lush melodic breakdown. Keeps chords, pads, plucky riffs, lead hooks, and percussion separated on dedicated tracks.",
       },
       {
         label: "90s Jungle",
         tags: ["jungle", "90s", "breakbeat"],
-        text: "Create an expanded 90s Jungle arrangement with pad intro, breakbeat tease, sub drop, chopped-break section, atmospheric breakdown, second drop, and raw outro. Use dedicated tracks for hats / rides, kick, snare / clap, percussion, bass, pad, riff, hook, and ambience.",
+        text: "Create an expanded 90s Jungle arrangement with warm tape-saturated pad intro, chopped Amen breakbeat teases, deep dub-wise sub bass melodies, ragga-style vocal cuts, atmospheric breakdowns, and high-tempo drum edits. Features dedicated tracks for rides / hats, kick, snare / clap, percussion, bass, pad, riff, hook, and ambience.",
       },
       {
         label: "Modern Pop",
         tags: ["pop", "chorus", "radio"],
-        text: "Create an expanded Modern Pop arrangement with intro, verse, pre-chorus, chorus, verse two, pre-chorus, chorus, bridge, final chorus, and outro. Use separate tracks for chords, pad, riff, hook, bass, kick, hats, snare / clap, percussion, and ambience.",
+        text: "Create an expanded Modern Pop arrangement with clean-voiced, highly expressive chord sequences, intro, verse, pre-chorus, a soaring chorus, verse two, bridge, final chorus, and clean radio outro. Uses separate, polished tracks for chords, warm sustained pads, melodic riffs, catch-heavy lead hooks, pop bass, kick, hats, clap, percussion, and background ambience.",
       },
       {
         label: "Reggae Dance Hall",
         tags: ["reggae", "dance hall", "offbeat"],
-        text: "Create an expanded Reggae and Dance Hall arrangement with intro, groove drop, verse, hook, percussion break, second verse, final hook, and outro. Emphasize offbeat chords, warm bass, loose percussion, clap, hats, pad, hook, and ambience.",
+        text: "Create an expanded Reggae and Dance Hall arrangement featuring classic offbeat bubble chords, deep warm sub basslines, loose shuffled percussion, a groove-filled verse, hook, percussion breakdown, and clean outro. Separate tracks for clap, hats, chords, pad, riff, hook, and ambience.",
       },
       {
         label: "Reggaeton",
         tags: ["reggaeton", "dembow", "latin"],
-        text: "Create an expanded Reggaeton arrangement with intro, dembow groove entrance, verse, pre-hook, hook, breakdown, second hook, final club section, and outro. Use separate kick, clap, hats, percussion, bass, chords, pad, riff, hook, and ambience tracks.",
+        text: "Create an expanded Reggaeton arrangement utilizing the infectious syncopated Dembow clave rhythm, sliding basslines, warm minor chord progressions, intro, pre-hook, main hook, club breakdown, final lift, and outro. Uses dedicated kick, clap, hats, percussion, bass, chords, pad, riff, hook, and ambience tracks.",
       },
       {
         label: "Rock Country",
         tags: ["rock", "country", "song"],
-        text: "Create an expanded Rock and Country arrangement with intro riff, verse, pre-chorus, chorus, verse two, chorus, bridge, final chorus, and outro. Use separate chord bed, bass, kick, snare / clap, hats, percussion, pad, riff, hook, and ambience tracks.",
+        text: "Create an expanded Rock and Country arrangement with acoustic chord beds, intro electric riffs, verse, pre-chorus, driving chorus, bridge, soaring guitar-style lead hook, and outro. Features separate tracks for chords, pad, riff, hook, bass, kick, snare / clap, hats, percussion, and ambience.",
       },
       {
         label: "Techno",
         tags: ["techno", "hypnotic", "club"],
-        text: "Create an expanded Techno arrangement with DJ intro, kick foundation, bass entrance, hypnotic riff section, tension break, main drive, stripped groove, final drive, and outro. Use dedicated kick, hats, clap, percussion, bass, riff, pad, hook, ambience, and chord tracks.",
+        text: "Create an expanded 130 BPM Techno arrangement featuring driving hypnotic kick foundations, dark single-note modal basslines, industrial synth sweeps, industrial claps, relentless offbeat hats, tension breaks, and raw peak-time final drives. Includes dedicated tracks for kick, hats, clap, percussion, bass, riff, pad, hook, ambience, and chords.",
       },
       {
         label: "Trance",
         tags: ["trance", "uplifting", "138 bpm"],
-        text: "Create an expanded Trance arrangement with atmospheric intro, rolling bass entrance, melodic build, breakdown, emotional hook reveal, snare build, main drop, final lift, and outro. Use dedicated chords, pad, riff, hook, bass, kick, hats, clap, percussion, and ambience tracks.",
+        text: "Create an expanded 138 BPM Trance arrangement featuring euphoric arpeggiated melodic builds, lush sustained pad layers, emotional breakdown hook reveals, huge snare build risers, and soaring main drops. Separate tracks for chords, pad, riff, hook, rolling bass, kick, hats, clap, percussion, and cinematic ambience.",
       },
       {
         label: "Trap",
         tags: ["trap", "808", "dark"],
-        text: "Create an expanded Trap arrangement with dark intro, verse, hook, beat switch or breakdown, verse two, final hook, and outro. Use dedicated tracks for chords, pad, riff, hook, 808 bass, kick, hats, snare / clap, percussion, and ambience.",
+        text: "Create an expanded 140 BPM Trap arrangement with dark detuned minor progressions, gliding 808 sub bass lines, fast hi-hat rolls with triplet variations, half-time snare placement, atmospheric verses, breakdowns, and hard drops. Separate tracks for chords, pad, riff, hook, bass, kick, hats, snare, percussion, and spacey ambience.",
       },
       {
         label: "Ambient Cinematic",
         tags: ["ambient", "cinematic", "slow"],
-        text: "Create an expanded Ambient Cinematic arrangement with texture opening, low pulse entrance, evolving theme, sparse breakdown, emotional bloom, and long fade. Use pad, ambience, chords, bass pulse, subtle percussion, hook motif, and soft riff layers.",
+        text: "Create an expanded Ambient Cinematic arrangement with wide evolving textures, low drone sub bass, minimal melodic motifs, sparse breakdowns, emotional chord blooms, and long trailing fades. Uses separate tracks for pad, ambience, chords, bass pulse, subtle percussion, hook, and riff layers.",
       },
       {
         label: "Hyperpop",
         tags: ["hyperpop", "bright", "glitch"],
-        text: "Create an expanded Hyperpop arrangement with instant hook intro, playful verse, chaotic pre-drop, bright drop, glitch breakdown, second hook, final maximal section, and abrupt outro. Use separate chords, pad, riff, hook, bass, kick, hats, snare / clap, percussion, and ambience tracks.",
+        text: "Create an expanded Hyperpop arrangement featuring instant hook intros, neon-bright plucks, frantic glitch breakdown stutters, maximum energy drops, and abrupt endings. Separate tracks for chords, pad, riff, hook, glitch bass, kick, hats, snare / clap, percussion, and bright ambience.",
       },
       {
         label: "UK Garage",
         tags: ["uk garage", "shuffle", "club"],
-        text: "Create an expanded UK Garage arrangement with shuffled intro, chord stab groove, bass entrance, vocal-style hook section, breakdown, second groove, final hook, and outro. Use separate kick, snare / clap, hats, percussion, bass, chords, pad, riff, hook, and ambience tracks.",
+        text: "Create an expanded UK Garage arrangement with bouncy 132 BPM skippy 2-step groove grids, offbeat swung hi-hats, jazzy rhodes chord stab syncopations, vocal chops, and deep sub basslines. Uses separate tracks for kick, snare / clap, hats, percussion, bass, chords, pad, riff, hook, and ambience.",
       },
       {
         label: "45 Second Clip",
         tags: ["short", "social", "hook"],
-        text: "Create a 45-second arrangement for a short-form video with instant hook, quick groove, fast build, memorable drop, and clean ending. Use the selected genre and keep the track parts separated so it can be expanded later.",
+        text: "Create a highly engaging 45-second arrangement for short-form social content, featuring an instant high-impact hook, quick driving groove, rapid riser tension build, memorable drop, and clean ending. Keeps all track parts separate for full production later.",
       },
     ],
   },
@@ -645,9 +638,52 @@ const finisherPromptLibrary = [
       },
     ],
   },
+  {
+    id: "full-arrangers",
+    name: "Song Sketch",
+    meta: "Full song templates",
+    title: "Session Loop Arrangers",
+    prompts: [
+      {
+        label: "House Arrangement",
+        tags: ["house", "groove", "drop", "dj tool"],
+        text: "Finish my existing Session View loops into a progressive house arrangement with natural drop building.",
+      },
+      {
+        label: "Techno DJ Tool",
+        tags: ["techno", "hypnotic", "gradual", "drop"],
+        text: "Finish my existing Session View loops into a techno DJ tool structure with hypnotic tension building.",
+      },
+      {
+        label: "Trap Beat Structure",
+        tags: ["trap", "verse", "hook", "808"],
+        text: "Finish my existing Session View loops into a trap beat with an intro, verse, pre-hook, hook, and outro.",
+      },
+      {
+        label: "Pop Song Arc",
+        tags: ["pop", "chorus", "bridge", "verse"],
+        text: "Finish my existing Session View loops into a pop song structure with a verse-pre-chorus-chorus arc.",
+      },
+      {
+        label: "Drum & Bass Rollout",
+        tags: ["dnb", "drum n bass", "rollout", "buildup"],
+        text: "Finish my existing Session View loops into a fast drum n bass arrangement with tension builds and massive drops.",
+      },
+      {
+        label: "Ambient Soundscape",
+        tags: ["ambient", "cinematic", "texture", "slow bloom"],
+        text: "Finish my existing Session View loops into a cinematic ambient arrangement with slow-building textures.",
+      },
+    ],
+  },
 ];
 
 let activeLibrary = promptLibrary;
+
+const songMakerMeta = {
+  meta: "Inspiration builder",
+  title: "Shape a track from ideas",
+};
 
 const expandedGenrePrompts = {
   drums: [
@@ -875,7 +911,209 @@ const copyPrompt = document.querySelector("#copyPrompt");
 const makeSongPrompt = document.querySelector("#makeSongPrompt");
 
 let activeTab = activeLibrary[0].id;
-let currentMode = "idea"; // idea or finisher
+let currentMode = "inspiration"; // inspiration, songmaker, or finisher
+let lastSentPrompt = "";
+
+// --- VST scanning state ---
+let scannedVstPlugins = [];
+let vstRoleSelections = JSON.parse(localStorage.getItem("vstRoleSelections") || "{}");
+let vstFavorites = JSON.parse(localStorage.getItem("vstFavorites") || "[]");
+const vstSelects = document.querySelectorAll("#vstRoles select[data-role]");
+const vstStatus = document.querySelector("#vstStatus");
+
+function populateVstDropdowns(plugins) {
+  vstSelects.forEach((sel) => {
+    const role = sel.dataset.role;
+    const savedValue = vstRoleSelections[role] || "";
+    // Keep first "Stock Ableton" option, remove any previously added
+    while (sel.options.length > 1) sel.remove(1);
+    
+    let baseFiltered = [];
+    if (role === "drums") {
+      baseFiltered = plugins.filter((name) => name.startsWith("BM-") || name.includes("Beatmaker"));
+      // Clean up extensions
+      baseFiltered = baseFiltered.map(name => name.replace(/\.(vst3|vst|component)$/i, ""));
+      if (baseFiltered.length === 0) {
+        baseFiltered = ["BM-HUSTLE", "BM-EDEN", "BM-DOPE", "BM-VICE"];
+      }
+    } else {
+      // Melodic roles filter for Serum
+      baseFiltered = plugins.filter((name) => name === "Serum2" || name === "Serum");
+      if (baseFiltered.length === 0) {
+        baseFiltered = ["Serum2"];
+      }
+    }
+
+    // Identify favorites matching this role category (Drums vs Melodic)
+    let roleFavorites = vstFavorites.filter(name => {
+      const isDrum = name.startsWith("BM-") || name.toLowerCase().includes("beatmaker") || name.toLowerCase().includes("drum");
+      return (role === "drums") ? isDrum : !isDrum;
+    });
+
+    // Combine them, placing favorites at the top (uniquely)
+    let combined = [...roleFavorites.map(f => ({ name: f, isFav: true }))];
+    baseFiltered.forEach(name => {
+      if (!roleFavorites.includes(name)) {
+        combined.push({ name: name, isFav: false });
+      }
+    });
+
+    combined.forEach((item) => {
+      const opt = document.createElement("option");
+      opt.value = item.name;
+      opt.textContent = item.isFav ? `⭐ ${item.name}` : item.name;
+      sel.appendChild(opt);
+    });
+    sel.value = savedValue || "";
+  });
+}
+
+function saveVstSelections() {
+  vstRoleSelections = {};
+  vstSelects.forEach((sel) => {
+    if (sel.value) vstRoleSelections[sel.dataset.role] = sel.value;
+  });
+  localStorage.setItem("vstRoleSelections", JSON.stringify(vstRoleSelections));
+}
+
+function buildVstMap() {
+  const map = {};
+  vstSelects.forEach((sel) => {
+    if (sel.value) map[sel.dataset.role] = sel.value;
+  });
+  return map;
+}
+
+vstSelects.forEach((sel) => sel.addEventListener("change", saveVstSelections));
+
+// --- VST Explorer & Favorites Event Handlers ---
+const toggleVstExplorerBtn = document.getElementById("toggleVstExplorerBtn");
+const vstExplorerBody = document.getElementById("vstExplorerBody");
+const vstSearchInput = document.getElementById("vstSearchInput");
+const vstPluginList = document.getElementById("vstPluginList");
+const vstContextMenu = document.getElementById("vstContextMenu");
+const contextFavAction = document.getElementById("contextFavAction");
+let activeContextPlugin = "";
+
+toggleVstExplorerBtn.addEventListener("click", () => {
+  vstExplorerBody.classList.toggle("hidden");
+  const isHidden = vstExplorerBody.classList.contains("hidden");
+  toggleVstExplorerBtn.textContent = isHidden ? "Show Scanned Plugins" : "Hide Scanned Plugins";
+  if (!isHidden) {
+    renderVstExplorerList();
+  }
+});
+
+vstSearchInput.addEventListener("input", () => {
+  renderVstExplorerList(vstSearchInput.value);
+});
+
+function renderVstExplorerList(filterText = "") {
+  vstPluginList.innerHTML = "";
+  
+  // Use scanned plugins, fallback to standard popular list if folder is empty or not scanned
+  let list = scannedVstPlugins.length > 0 ? scannedVstPlugins : [
+    "Serum2", "Serum", "BM-HUSTLE", "BM-EDEN", "BM-DOPE", "BM-VICE", 
+    "Omnisphere", "Kontakt", "Massive", "Sylenth1", "Spire", "Diva"
+  ];
+  
+  // Clean extensions and eliminate duplicates
+  list = list.map(name => name.replace(/\.(vst3|vst|component)$/i, ""));
+  list = [...new Set(list)];
+  
+  if (filterText) {
+    const q = filterText.toLowerCase();
+    list = list.filter(name => name.toLowerCase().includes(q));
+  }
+  
+  if (list.length === 0) {
+    vstPluginList.innerHTML = `<li class="vst-plugin-item" style="color: var(--muted); cursor: default;">No plugins match search</li>`;
+    return;
+  }
+  
+  list.forEach(name => {
+    const li = document.createElement("li");
+    li.className = "vst-plugin-item";
+    li.dataset.name = name;
+    
+    const isFav = vstFavorites.includes(name);
+    
+    li.innerHTML = `
+      <span class="vst-plugin-name">${name}</span>
+      <span class="vst-fav-star ${isFav ? 'active' : 'inactive'}">★</span>
+    `;
+    
+    const star = li.querySelector(".vst-fav-star");
+    star.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleFavorite(name);
+    });
+    
+    li.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showContextMenu(e.clientX, e.clientY, name);
+    });
+    
+    vstPluginList.appendChild(li);
+  });
+}
+
+function toggleFavorite(name) {
+  const index = vstFavorites.indexOf(name);
+  if (index === -1) {
+    vstFavorites.push(name);
+  } else {
+    vstFavorites.splice(index, 1);
+  }
+  localStorage.setItem("vstFavorites", JSON.stringify(vstFavorites));
+  
+  renderVstExplorerList(vstSearchInput.value);
+  populateVstDropdowns(scannedVstPlugins);
+}
+
+function showContextMenu(x, y, pluginName) {
+  activeContextPlugin = pluginName;
+  const isFav = vstFavorites.includes(pluginName);
+  contextFavAction.textContent = isFav ? "❌ Remove Favorite" : "⭐ Add to Favorites";
+  
+  vstContextMenu.style.left = `${x + window.scrollX}px`;
+  vstContextMenu.style.top = `${y + window.scrollY}px`;
+  vstContextMenu.classList.remove("hidden");
+}
+
+document.addEventListener("click", (e) => {
+  if (!vstContextMenu.contains(e.target)) {
+    vstContextMenu.classList.add("hidden");
+  }
+});
+
+document.addEventListener("contextmenu", (e) => {
+  if (!e.target.closest(".vst-plugin-item")) {
+    vstContextMenu.classList.add("hidden");
+  }
+});
+
+contextFavAction.addEventListener("click", () => {
+  if (activeContextPlugin) {
+    toggleFavorite(activeContextPlugin);
+  }
+  vstContextMenu.classList.add("hidden");
+});
+
+(async function scanVstPlugins() {
+  try {
+    const res = await fetch("/api/vst-scan");
+    if (!res.ok) throw new Error("scan failed");
+    const data = await res.json();
+    scannedVstPlugins = data.plugins || [];
+    populateVstDropdowns(scannedVstPlugins);
+    vstStatus.textContent = `${scannedVstPlugins.length} plugins found (Serum/Beatmaker filtered)`;
+  } catch {
+    vstStatus.textContent = "Could not scan VST folder (using Serum 2 fallback)";
+    populateVstDropdowns([]);
+  }
+})();
 
 const modeToggle = document.querySelector("#modeToggle");
 
@@ -888,10 +1126,18 @@ modeToggle.addEventListener("click", (event) => {
   if (newMode === "finisher") {
     const confirmSave = confirm("The Finisher uses destructive subtractive strategies. Please save a copy of your Live Set (File -> Save a Copy) before proceeding. Have you saved a copy?");
     if (!confirmSave) return;
+  }
+
+  // Remove all mode classes
+  document.body.classList.remove("mode-finisher", "mode-songmaker");
+
+  if (newMode === "finisher") {
     document.body.classList.add("mode-finisher");
     activeLibrary = finisherPromptLibrary;
+  } else if (newMode === "songmaker") {
+    document.body.classList.add("mode-songmaker");
+    activeLibrary = promptLibrary; // not really used, but keeps state consistent
   } else {
-    document.body.classList.remove("mode-finisher");
     activeLibrary = promptLibrary;
   }
 
@@ -899,7 +1145,9 @@ modeToggle.addEventListener("click", (event) => {
   modeToggle.querySelectorAll("button").forEach(b => b.classList.remove("active"));
   button.classList.add("active");
 
-  activeTab = activeLibrary[0].id;
+  if (newMode !== "songmaker") {
+    activeTab = activeLibrary[0].id;
+  }
   renderTabs();
   renderPromptGrid();
 });
@@ -941,6 +1189,10 @@ promptGrid.addEventListener("click", (event) => {
   if (!selected) return;
   prompt.value = customizePrompt(selected.text);
   prompt.focus();
+  // Song Sketch session arrangers auto-submit directly to Ableton
+  if (activeTab === "full-arrangers") {
+    form.requestSubmit();
+  }
 });
 
 promptGrid.addEventListener("input", (event) => {
@@ -975,6 +1227,7 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const text = prompt.value.trim();
   if (!text) return;
+  lastSentPrompt = text;
 
   addMessage("user", text);
 
@@ -982,7 +1235,7 @@ form.addEventListener("submit", async (event) => {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({ message: text, vst_map: buildVstMap() }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Request failed");
@@ -997,6 +1250,7 @@ form.addEventListener("submit", async (event) => {
 
 function renderTabs() {
   tabs.innerHTML = "";
+  if (currentMode === "songmaker") return;
   activeLibrary.forEach((category) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -1008,14 +1262,16 @@ function renderTabs() {
 }
 
 function renderPromptGrid() {
-  const category = activeLibrary.find((item) => item.id === activeTab);
-  if (category.id === "song-finder") {
-    activeMeta.textContent = category.meta;
-    activeTitle.textContent = category.title;
+  // Song Maker mode: render the finder UI directly
+  if (currentMode === "songmaker") {
+    activeMeta.textContent = songMakerMeta.meta;
+    activeTitle.textContent = songMakerMeta.title;
     resultCount.textContent = `${Object.keys(finderSelections).length} ingredients`;
     renderSongFinder();
     return;
   }
+
+  const category = activeLibrary.find((item) => item.id === activeTab);
 
   const query = search.value.trim().toLowerCase();
   const prompts = category.prompts.filter((item) => {
@@ -1158,7 +1414,8 @@ function randomItem(items) {
 }
 
 function findPrompt(label) {
-  for (const category of promptLibrary) {
+  for (const category of [...promptLibrary, ...finisherPromptLibrary]) {
+    if (!category.prompts) continue;
     const item = category.prompts.find((entry) => entry.label === label);
     if (item) return item;
   }
@@ -1198,7 +1455,41 @@ function addMessage(role, text, actions) {
     pre.textContent = JSON.stringify(actions, null, 2);
     article.appendChild(pre);
   }
+  if (role === "assistant") {
+    const feedback = document.createElement("div");
+    feedback.className = "feedback-actions";
+    feedback.innerHTML = `
+      <button type="button" data-feedback="up">Useful</button>
+      <button type="button" data-feedback="down">Not useful</button>
+    `;
+    feedback.addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      sendFeedback(button.dataset.feedback, text, feedback);
+    });
+    article.appendChild(feedback);
+  }
   messages.prepend(article);
+  return article;
+}
+
+async function sendFeedback(rating, reply, container) {
+  try {
+    const response = await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating, prompt: lastSentPrompt, reply }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Feedback failed");
+    container.querySelectorAll("button").forEach((button) => {
+      button.disabled = true;
+    });
+    container.dataset.sent = "true";
+    renderEvents(data.events || []);
+  } catch (error) {
+    container.dataset.error = error.message;
+  }
 }
 
 async function refreshStatus() {

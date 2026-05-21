@@ -62,7 +62,7 @@ Vibelton provides a "Command Center" interface that translates natural language 
 - **Bridge (Ableton Remote Script)**: A Python 3 script running inside Ableton Live 12 that polls for new commands and executes them using the Live API.
 
 ### 5.2 Communication Protocol
-The system uses a file-based queue system located in `~/.ableton_copilot/`:
+The system uses a file-based queue system located in `~/.vibelton/`:
 - `commands.jsonl`: Outgoing actions from Server to Live.
 - `events.jsonl`: Feedback and status updates from Live to Server.
 - `state.json`: Current Live state (tracks, clips, transport).
@@ -70,7 +70,7 @@ The system uses a file-based queue system located in `~/.ableton_copilot/`:
 ---
 
 ## 6. User Workflow
-1.  **Initialization**: User starts the Vibelton server and selects the `AbletonCopilot` Control Surface in Live.
+1.  **Initialization**: User starts the Vibelton server and selects the `Vibelton` Control Surface in Live.
 2.  **Prompting**: User types a request (e.g., "Create a dark techno buildup for 8 bars").
 3.  **Planning**: Vibelton determines the necessary actions (Create tracks, generate MIDI, set scene names).
 4.  **Execution**: The Ableton Bridge reads the command queue and performs the actions in real-time.

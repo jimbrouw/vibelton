@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import re
 import struct
 from collections import Counter
@@ -18,10 +19,12 @@ DEFAULT_MIDI_ROOTS = [
     "/Users/standard/Music/GM Mapped",
     "/Users/standard/Music/free-midi-progressions-20240314",
     "/Users/standard/Music/Cymatics_Black_Friday_Deluxe_Bundle",
+    "/Users/standard/Music/DrumPlug Ascension Sound Pack/_MIDI",
+    "/Users/standard/Music/Cymatics_Savage_Drums_For_Trap_Gold_Edition/Cymatics - Savage Drums for Trap - Gold Edition/MIDI",
     "/Users/standard/Music",
 ]
 
-CACHE_PATH = Path.home() / ".cache" / "ableton_copilot" / "midi_grooves.json"
+CACHE_PATH = Path.home() / ".cache" / "vibelton" / "midi_grooves.json"
 
 DRUM_KEYWORDS = {
     "beat",
@@ -107,13 +110,131 @@ def generate_library_drums(message: str, bars: int, energy: str = "main", keep: 
         return []
 
     wanted = keep or {36, 38, 39, 42, 46, 49, 41}
-    usable = [pattern for pattern in candidates if any(int(note["pitch"]) in wanted for note in pattern.get("notes", []))]
+    usable = [pattern for pattern in candidates if pattern.get("pattern_type", "drum") == "drum" and any(int(note["pitch"]) in wanted for note in pattern.get("notes", []))]
     if not usable:
         return []
 
     seed = sum(ord(char) for char in f"{style}:{energy}:{bars}:{message.lower()}")
     pattern = usable[seed % len(usable)]
     return fit_pattern(pattern["notes"], bars, wanted, energy)
+
+
+def generate_library_chords(message: str, bars: int, energy: str = "main", keep: set[int] | None = None) -> list[dict[str, Any]]:
+    library = load_cached_library()
+    if not library:
+        return []
+
+    style = detect_style(message)
+    candidates = library.get("styles", {}).get(style) or []
+    if not candidates:
+        candidates = library.get("styles", {}).get("generic") or []
+    if not candidates:
+        return []
+
+    usable = [pattern for pattern in candidates if pattern.get("pattern_type") == "chord"]
+    if not usable:
+        # Fallback to anything not drums
+        usable = [pattern for pattern in candidates if pattern.get("pattern_type") != "drum"]
+    if not usable:
+        return []
+
+    seed = sum(ord(char) for char in f"chords:{style}:{energy}:{bars}:{message.lower()}")
+    pattern = usable[seed % len(usable)]
+    return fit_pattern(pattern["notes"], bars, keep or set(range(128)), energy)
+
+
+def generate_library_melody(message: str, bars: int, energy: str = "main", keep: set[int] | None = None) -> list[dict[str, Any]]:
+    library = load_cached_library()
+    if not library:
+        return []
+
+    style = detect_style(message)
+    candidates = library.get("styles", {}).get(style) or []
+    if not candidates:
+        candidates = library.get("styles", {}).get("generic") or []
+    if not candidates:
+        return []
+
+    usable = [pattern for pattern in candidates if pattern.get("pattern_type") == "melody"]
+    if not usable:
+        usable = [pattern for pattern in candidates if pattern.get("pattern_type") != "drum"]
+    if not usable:
+        return []
+
+    seed = sum(ord(char) for char in f"melody:{style}:{energy}:{bars}:{message.lower()}")
+    pattern = usable[seed % len(usable)]
+    return fit_pattern(pattern["notes"], bars, keep or set(range(128)), energy)
+
+
+def post_process_bass_notes(notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not notes:
+        return []
+
+    # 1. Enforce monophony: keep only the lowest pitch note at each unique start time
+    by_start: dict[float, dict[str, Any]] = {}
+    for note in notes:
+        start = float(note.get("start", 0.0))
+        if start not in by_start:
+            by_start[start] = note
+        else:
+            if int(note.get("pitch", 0)) < int(by_start[start].get("pitch", 0)):
+                by_start[start] = note
+
+    monophonic = sorted(by_start.values(), key=lambda n: float(n.get("start", 0.0)))
+
+    if not monophonic:
+        return []
+
+    # 2. Enforce bass range: average pitch between 28 and 45. Shift by octaves.
+    pitches = [int(note.get("pitch", 0)) for note in monophonic if not note.get("mute", False)]
+    if not pitches:
+        pitches = [int(note.get("pitch", 0)) for note in monophonic]
+
+    avg_pitch = sum(pitches) / len(pitches)
+
+    semitone_shift = 0
+    while avg_pitch + semitone_shift > 45:
+        semitone_shift -= 12
+    while avg_pitch + semitone_shift < 28:
+        semitone_shift += 12
+
+    processed = []
+    for note in monophonic:
+        copy_note = dict(note)
+        new_pitch = int(copy_note.get("pitch", 0)) + semitone_shift
+        # Clamp strictly between 24 and 55
+        while new_pitch > 55:
+            new_pitch -= 12
+        while new_pitch < 24:
+            new_pitch += 12
+        copy_note["pitch"] = new_pitch
+        processed.append(copy_note)
+
+    return sorted(processed, key=lambda n: float(n.get("start", 0.0)))
+
+
+def generate_library_bass(message: str, bars: int, energy: str = "main", keep: set[int] | None = None) -> list[dict[str, Any]]:
+    library = load_cached_library()
+    if not library:
+        return []
+
+    style = detect_style(message)
+    candidates = library.get("styles", {}).get(style) or []
+    if not candidates:
+        candidates = library.get("styles", {}).get("generic") or []
+    if not candidates:
+        return []
+
+    usable = [pattern for pattern in candidates if pattern.get("pattern_type") == "bass"]
+    if not usable:
+        usable = [pattern for pattern in candidates if pattern.get("pattern_type") != "drum"]
+    if not usable:
+        return []
+
+    seed = sum(ord(char) for char in f"bass:{style}:{energy}:{bars}:{message.lower()}")
+    pattern = usable[seed % len(usable)]
+    fitted = fit_pattern(pattern["notes"], bars, keep or set(range(128)), energy)
+    return post_process_bass_notes(fitted)
 
 
 @lru_cache(maxsize=4)
@@ -141,18 +262,19 @@ def build_library(roots: list[str] | None = None, limit: int | None = None) -> d
             skipped["parse_error"] += 1
             continue
 
-        drum_notes = extract_drum_notes(notes, path)
-        if len(drum_notes) < 4:
-            skipped["not_drum"] += 1
+        pattern_type, extracted_notes = classify_and_extract_notes(notes, path)
+        if len(extracted_notes) < 4:
+            skipped["too_short"] += 1
             continue
 
-        pattern = normalize_pattern(drum_notes, ticks_per_beat)
+        pattern = normalize_pattern(extracted_notes, ticks_per_beat, pattern_type)
         if len(pattern["notes"]) < 4:
             skipped["too_short"] += 1
             continue
         pattern["source"] = str(path)
         pattern["style"] = style
         pattern["bpm"] = bpm_from_path(path)
+        pattern["pattern_type"] = pattern_type
         styles.setdefault(style, []).append(pattern)
         if style != "generic":
             styles.setdefault("generic", []).append(pattern)
@@ -295,44 +417,72 @@ def read_varlen(data: bytes, index: int) -> tuple[int, int]:
     return value, index
 
 
-def extract_drum_notes(notes: list[dict[str, Any]], path: Path) -> list[dict[str, Any]]:
+def classify_and_extract_notes(notes: list[dict[str, Any]], path: Path) -> tuple[str, list[dict[str, Any]]]:
     text = str(path).lower()
-    if any(word in text for word in ["melody", "chord", "progression", "acapella", "vocal"]):
-        return []
+    
+    # Check if it looks like drums
     channel_10 = [note for note in notes if note["channel"] == 9 and int(note["pitch"]) in PITCH_MAP]
     if len(channel_10) >= 4:
-        return channel_10
-    if not any(keyword in text for keyword in DRUM_KEYWORDS):
-        return []
-    mapped = [note for note in notes if int(note["pitch"]) in PITCH_MAP]
-    if len(mapped) >= 4:
-        return mapped
-    if "hihat" in text or "hi hat" in text or "hat midi" in text:
-        return [{**note, "pitch": 42} for note in notes[:256]]
-    return []
+        return "drum", channel_10
+        
+    drum_keywords_match = any(keyword in text for keyword in DRUM_KEYWORDS)
+    if drum_keywords_match:
+        mapped = [note for note in notes if int(note["pitch"]) in PITCH_MAP]
+        if len(mapped) >= 4:
+            return "drum", mapped
+        if "hihat" in text or "hi hat" in text or "hat midi" in text:
+            return "drum", [{**note, "pitch": 42} for note in notes[:256]]
+            
+    # Check for chord keywords
+    if any(word in text for word in ["chord", "progression", "pad", "keys"]):
+        return "chord", notes
+        
+    # Check for bass keywords
+    if any(word in text for word in ["bass", "808"]):
+        return "bass", notes
+        
+    # Check for melody keywords
+    if any(word in text for word in ["melody", "lead", "hook", "riff"]):
+        return "melody", notes
+        
+    # Heuristics based on notes
+    if not notes:
+        return "melody", []
+        
+    starts = [float(n["start"]) for n in notes]
+    unique_starts = len(set(starts))
+    if len(starts) > 0 and (len(starts) - unique_starts) / len(starts) > 0.3:
+        # A lot of polyphony -> likely chords
+        return "chord", notes
+    else:
+        return "melody", notes
 
 
-def normalize_pattern(notes: list[dict[str, Any]], ticks_per_beat: int) -> dict[str, Any]:
+def normalize_pattern(notes: list[dict[str, Any]], ticks_per_beat: int, pattern_type: str = "drum") -> dict[str, Any]:
     del ticks_per_beat
-    max_end = max(float(note["start"]) + float(note["duration"]) for note in notes)
+    max_end = max((float(note["start"]) + float(note["duration"]) for note in notes), default=0.0)
     length_beats = choose_length(max_end)
     normalized: list[dict[str, Any]] = []
     for note in notes:
         start = float(note["start"]) % length_beats
-        pitch = PITCH_MAP.get(int(note["pitch"]), int(note["pitch"]))
-        if pitch not in {36, 38, 39, 41, 42, 46, 49}:
-            continue
+        if pattern_type == "drum":
+            pitch = PITCH_MAP.get(int(note["pitch"]), int(note["pitch"]))
+            if pitch not in {36, 38, 39, 41, 42, 46, 49}:
+                continue
+        else:
+            pitch = int(note["pitch"])
+            
         normalized.append(
             {
                 "pitch": pitch,
                 "start": round(start, 4),
-                "duration": round(max(0.04, min(float(note["duration"]), 0.5)), 4),
+                "duration": round(max(0.04, min(float(note["duration"]), 4.0 if pattern_type != "drum" else 0.5)), 4),
                 "velocity": max(1, min(127, int(note["velocity"]))),
                 "mute": False,
             }
         )
     normalized.sort(key=lambda item: (item["start"], item["pitch"]))
-    return {"length_beats": length_beats, "notes": normalized[:512]}
+    return {"length_beats": length_beats, "notes": normalized[:1024]}
 
 
 def choose_length(max_end: float) -> int:
@@ -398,7 +548,7 @@ def style_from_text(text: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build the Ableton Copilot MIDI groove cache.")
+    parser = argparse.ArgumentParser(description="Build the Vibelton MIDI groove cache.")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--cache", type=Path, default=CACHE_PATH)
     args = parser.parse_args()
@@ -412,13 +562,20 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-import random
 
-def mutate_clones(notes: list[dict[str, Any]], sibling_index: int) -> list[dict[str, Any]]:
+def stable_seed(value: Any) -> int:
+    text = json.dumps(value, sort_keys=True, default=str) if not isinstance(value, str) else value
+    return sum((index + 1) * ord(char) for index, char in enumerate(text)) % (2**32)
+
+
+def seeded_rng(seed: int | str | None) -> random.Random:
+    return random.Random(stable_seed(seed or 0))
+
+
+def mutate_clones(notes: list[dict[str, Any]], sibling_index: int, seed: int | str | None = None) -> list[dict[str, Any]]:
     """Mutate a set of notes slightly based on its sibling index."""
     mutated = []
-    # Seed based on sibling index to ensure determinism for a given clone index
-    rng = random.Random(sibling_index + 42)
+    rng = seeded_rng({"seed": seed, "sibling_index": sibling_index, "kind": "mutate_clones"})
     for note in notes:
         copy_note = dict(note)
         # Randomly adjust velocity by up to +/- 10
@@ -437,26 +594,35 @@ def mutate_clones(notes: list[dict[str, Any]], sibling_index: int) -> list[dict[
         mutated.append(copy_note)
     return mutated
 
-def humanize_groove(notes: list[dict[str, Any]], velocity_amount: int = 10, timing_amount: float = 0.03) -> list[dict[str, Any]]:
+def humanize_groove(
+    notes: list[dict[str, Any]],
+    velocity_amount: int = 10,
+    timing_amount: float = 0.03,
+    seed: int | str | None = None,
+    groove_profile: Any | None = None,
+) -> list[dict[str, Any]]:
     """Randomize velocity and start times to simulate human playing."""
     mutated = []
+    rng = seeded_rng({"seed": seed, "kind": "humanize_groove", "count": len(notes)})
+    if groove_profile is not None:
+        velocity_amount = int(getattr(groove_profile, "velocity_jitter", velocity_amount))
+        timing_amount = min(0.08, float(getattr(groove_profile, "position_jitter_ms", timing_amount * 500)) / 500.0)
     for note in notes:
         copy_note = dict(note)
-        # Shift start time
-        start_shift = random.uniform(-timing_amount, timing_amount)
+        start_shift = rng.uniform(-timing_amount, timing_amount)
         copy_note["start"] = max(0.0, round(float(copy_note["start"]) + start_shift, 4))
         
-        # Shift velocity
-        vel_shift = random.randint(-velocity_amount, velocity_amount)
+        vel_shift = rng.randint(-velocity_amount, velocity_amount)
         copy_note["velocity"] = max(1, min(127, int(copy_note["velocity"]) + vel_shift))
         
         mutated.append(copy_note)
     return mutated
 
-def add_ghost_notes(notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def add_ghost_notes(notes: list[dict[str, Any]], seed: int | str | None = None) -> list[dict[str, Any]]:
     """Add rhythmic ghost notes (snares/hats) to a drum pattern."""
     mutated = list(notes)
     existing_starts = {float(note["start"]) for note in notes}
+    rng = seeded_rng({"seed": seed, "kind": "add_ghost_notes", "count": len(notes)})
     
     # We'll just look at the bounds
     if not notes:
@@ -471,12 +637,12 @@ def add_ghost_notes(notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         start = beat * 0.25
         if start not in existing_starts and start % 1.0 != 0.0:
             # 15% chance to add a ghost note
-            if random.random() < 0.15:
+            if rng.random() < 0.15:
                 mutated.append({
                     "pitch": ghost_pitch,
                     "start": start,
                     "duration": 0.1,
-                    "velocity": random.randint(20, 45),
+                    "velocity": rng.randint(20, 45),
                     "mute": False
                 })
                 
