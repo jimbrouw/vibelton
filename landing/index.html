@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vibelton — Talk to Ableton Live. Keep the MIDI.</title>
+    <meta name="description" content="Vibelton is a chat assistant for Ableton Live 12. Talk to your DAW. Get genre-faithful, humanised MIDI you actually own. Snowball from zero." />
+    <meta property="og:title" content="Vibelton — Talk to Ableton Live. Keep the MIDI." />
+    <meta property="og:description" content="Talk to Ableton. Get genre-faithful, humanised MIDI you actually own." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://vibelton.live" />
+    <link rel="icon" href="data:," />
+    <style>
+      :root {
+        --bg: #101312;
+        --ink: #f3f0e8;
+        --muted: #b9c2ba;
+        --soft: #d7ded5;
+        --line: #2c342f;
+        --panel: #171c1a;
+        --panel-strong: #202823;
+        --dark: #0b0e0d;
+        --accent: #67b99a;
+        --accent-2: #d38b5d;
+        --amber: #d9b56f;
+        --danger: #d46a5f;
+        --shadow: 0 24px 80px -54px rgba(0, 0, 0, 0.92);
+        font-family: Avenir Next, Avenir, Montserrat, Trebuchet MS, sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body { margin: 0; }
+
+      body {
+        min-height: 100dvh;
+        background:
+          linear-gradient(90deg, rgba(243, 240, 232, 0.04) 1px, transparent 1px) 0 0 / 40px 40px,
+          linear-gradient(rgba(243, 240, 232, 0.03) 1px, transparent 1px) 0 0 / 40px 40px,
+          radial-gradient(circle at 16% 8%, rgba(103, 185, 154, 0.18), transparent 28rem),
+          radial-gradient(circle at 88% 78%, rgba(211, 139, 93, 0.12), transparent 32rem),
+          var(--bg);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a { color: var(--accent); text-decoration: none; }
+      a:hover { color: var(--soft); }
+
+      button, input { font: inherit; }
+      button { cursor: pointer; }
+
+      .wrap {
+        width: min(1200px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      /* ── Top nav ──────────────────────────────────────────────────── */
+      .site-header {
+        padding: 22px 0;
+        border-bottom: 1px solid var(--line);
+        background: color-mix(in srgb, var(--panel) 60%, transparent);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: saturate(140%) blur(8px);
+      }
+
+      .site-header .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .logo {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: -0.01em;
+        color: var(--ink);
+      }
+
+      .logo-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 70%, transparent);
+      }
+
+      .nav-links {
+        display: inline-flex;
+        align-items: center;
+        gap: 22px;
+      }
+
+      .nav-links a {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+      }
+
+      .nav-cta {
+        min-height: 38px;
+        padding: 0 14px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel-strong);
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 900;
+        letter-spacing: 0.02em;
+        transition: border-color 160ms ease;
+      }
+
+      .nav-cta:hover { border-color: var(--accent); color: var(--ink); }
+
+      /* ── Hero ─────────────────────────────────────────────────────── */
+      .hero {
+        padding: 72px 0 48px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+        gap: 56px;
+        align-items: center;
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        max-width: 720px;
+        font-size: clamp(3rem, 7vw, 6.4rem);
+        font-weight: 900;
+        line-height: 0.86;
+        letter-spacing: -0.01em;
+      }
+
+      .tagline {
+        margin: 18px 0 0;
+        max-width: 560px;
+        color: var(--soft);
+        font-size: clamp(1.2rem, 2vw, 1.55rem);
+        font-weight: 800;
+        line-height: 1.25;
+      }
+
+      .subtagline {
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-size: 1.05rem;
+        font-weight: 750;
+        line-height: 1.5;
+      }
+
+      .hero-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 28px;
+        max-width: 520px;
+      }
+
+      .hero-form input[type="email"] {
+        flex: 1 1 280px;
+        min-height: 48px;
+        padding: 0 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #0f1412;
+        color: var(--ink);
+        outline: 0;
+        font-weight: 700;
+      }
+
+      .hero-form input[type="email"]:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+      }
+
+      .hero-form input::placeholder { color: #879188; }
+
+      .primary-button {
+        min-height: 48px;
+        padding: 0 22px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--accent-2);
+        color: #101312;
+        font-weight: 900;
+        letter-spacing: 0.01em;
+        transition: transform 150ms ease, background 150ms ease;
+      }
+
+      .primary-button:hover { background: color-mix(in srgb, var(--accent-2) 88%, white); }
+      .primary-button:active { transform: translateY(1px); }
+
+      .form-note {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .form-note b { color: var(--soft); font-weight: 850; }
+
+      /* ── App mock (hero right) ────────────────────────────────────── */
+      .mock-frame {
+        position: relative;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: color-mix(in srgb, var(--panel) 94%, transparent);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .mock-titlebar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--line);
+        background: var(--dark);
+      }
+
+      .mock-titlebar i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #3a3f3c;
+      }
+
+      .mock-titlebar i:nth-child(1) { background: #d46a5f; }
+      .mock-titlebar i:nth-child(2) { background: #d9b56f; }
+      .mock-titlebar i:nth-child(3) { background: #67b99a; }
+
+      .mock-url {
+        margin-left: 10px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .mock-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+        gap: 12px;
+        padding: 12px;
+        background:
+          linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 38%),
+          var(--panel);
+      }
+
+      .mock-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel-strong);
+        padding: 12px;
+      }
+
+      .mock-eyebrow {
+        margin: 0 0 6px;
+        color: var(--accent);
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .mock-h {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 900;
+        line-height: 1.1;
+      }
+
+      .mock-toggle {
+        display: inline-flex;
+        margin-top: 8px;
+        padding: 3px;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .mock-toggle span {
+        padding: 5px 11px;
+        border-radius: 99px;
+        font-size: 10px;
+        font-weight: 850;
+        color: var(--muted);
+      }
+
+      .mock-toggle span.active {
+        background: var(--panel-strong);
+        color: var(--ink);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+      }
+
+      .mock-prompts {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .mock-prompt {
+        display: grid;
+        gap: 14px;
+        min-height: 80px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 10px;
+        background: #1b211e;
+      }
+
+      .mock-prompt b {
+        font-size: 12px;
+        font-weight: 900;
+        line-height: 1.15;
+        color: var(--ink);
+      }
+
+      .mock-prompt small {
+        align-self: end;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 800;
+      }
+
+      .mock-side .mock-card + .mock-card { margin-top: 10px; }
+
+      .mock-textarea {
+        margin-top: 8px;
+        height: 90px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 8px 10px;
+        background: #0f1412;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--soft);
+        line-height: 1.45;
+      }
+
+      .mock-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .mock-btn {
+        height: 26px;
+        padding: 0 10px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .mock-btn.primary { background: var(--accent-2); color: #101312; border: 0; }
+      .mock-btn.secondary { background: var(--panel-strong); color: var(--ink); border: 1px solid var(--line); }
+
+      .mock-status {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .mock-status b { color: var(--ink); font-weight: 850; }
+
+      /* ── Features ─────────────────────────────────────────────────── */
+      .features {
+        padding: 64px 0;
+        border-top: 1px solid var(--line);
+        background: color-mix(in srgb, var(--panel) 38%, transparent);
+      }
+
+      .section-title {
+        max-width: 760px;
+        margin-bottom: 36px;
+      }
+
+      .section-title h2 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 3rem);
+        font-weight: 900;
+        line-height: 0.96;
+        letter-spacing: -0.01em;
+      }
+
+      .section-title p {
+        margin: 14px 0 0;
+        color: var(--muted);
+        font-size: 1.05rem;
+        font-weight: 750;
+        line-height: 1.5;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px;
+      }
+
+      .feature-card {
+        position: relative;
+        display: grid;
+        gap: 10px;
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel-strong);
+        transition: border-color 160ms ease, transform 160ms ease;
+      }
+
+      .feature-card:hover {
+        border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+        transform: translateY(-2px);
+      }
+
+      .feature-card h3 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 900;
+        line-height: 1.15;
+      }
+
+      .feature-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.5;
+      }
+
+      .feature-card .pill {
+        align-self: start;
+        padding: 4px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: #1a201d;
+        color: var(--accent);
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .feature-card.amber .pill { color: var(--amber); }
+
+      /* ── Genre strip ──────────────────────────────────────────────── */
+      .genres {
+        padding: 48px 0 56px;
+      }
+
+      .genres .label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        margin: 0 0 16px;
+      }
+
+      .genre-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .genre-chip {
+        padding: 8px 14px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: #111614;
+        color: var(--soft);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      /* ── Final CTA ────────────────────────────────────────────────── */
+      .cta-final {
+        padding: 72px 0 96px;
+        border-top: 1px solid var(--line);
+        background:
+          radial-gradient(circle at 50% 0%, rgba(103, 185, 154, 0.14), transparent 24rem),
+          color-mix(in srgb, var(--panel) 50%, transparent);
+        text-align: center;
+      }
+
+      .cta-final h2 {
+        margin: 0 auto;
+        max-width: 720px;
+        font-size: clamp(2rem, 4.5vw, 3.4rem);
+        font-weight: 900;
+        line-height: 0.96;
+        letter-spacing: -0.01em;
+      }
+
+      .cta-final p {
+        margin: 14px auto 0;
+        max-width: 560px;
+        color: var(--muted);
+        font-size: 1.05rem;
+        font-weight: 750;
+        line-height: 1.5;
+      }
+
+      .cta-final .hero-form {
+        margin-left: auto;
+        margin-right: auto;
+        justify-content: center;
+      }
+
+      /* ── Footer ───────────────────────────────────────────────────── */
+      footer {
+        padding: 28px 0 36px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      footer .wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        justify-content: space-between;
+      }
+
+      footer a { color: var(--muted); }
+      footer a:hover { color: var(--soft); }
+
+      /* ── Responsive ───────────────────────────────────────────────── */
+      @media (max-width: 980px) {
+        .hero-grid { grid-template-columns: 1fr; gap: 36px; }
+        .hero { padding: 48px 0 32px; }
+        .nav-links { gap: 14px; }
+        .nav-links a:not(.nav-cta) { display: none; }
+      }
+
+      @media (max-width: 560px) {
+        .mock-body { grid-template-columns: 1fr; }
+        .mock-prompts { grid-template-columns: 1fr; }
+        .hero-form input[type="email"] { flex-basis: 100%; }
+        .primary-button { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap">
+        <a class="logo" href="/">
+          <span class="logo-dot"></span>
+          Vibelton
+        </a>
+        <div class="nav-links">
+          <a href="#features">Features</a>
+          <a href="#genres">Genres</a>
+          <a href="https://github.com/jimbrouw/vibelton" target="_blank" rel="noopener">GitHub</a>
+          <a class="nav-cta" href="#waitlist">Join the waitlist</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- ── Hero ─────────────────────────────────────────────────── -->
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div>
+            <p class="eyebrow">Ableton Live Copilot</p>
+            <h1>Talk to Ableton Live. Keep the MIDI.</h1>
+            <p class="tagline">Snowball from zero. Genre-faithful drums, chords, basslines and full sketches — every note lands as editable MIDI in your project.</p>
+            <p class="subtagline">Vibelton runs locally next to Live 12. Built for producers who want chat-speed iteration without rendered audio they can't edit.</p>
+
+            <form class="hero-form" id="waitlistTop" action="" method="post">
+              <!--
+                Swap action="" for your email service endpoint. Examples:
+                  Formspree:    https://formspree.io/f/YOUR_FORM_ID
+                  Buttondown:   https://buttondown.email/api/emails/embed-subscribe/YOUR_USER
+                  ConvertKit:   https://app.convertkit.com/forms/FORM_ID/subscriptions
+                  Netlify:      add `data-netlify="true"` and a hidden `form-name` input
+                  Mailchimp:    your audience-specific embed URL
+              -->
+              <input type="email" name="email" placeholder="you@studio.com" required aria-label="Email address" />
+              <button class="primary-button" type="submit">Join the waitlist</button>
+              <p class="form-note">Building toward a public beta. <b>No spam, no upsells.</b> We email when there's something to play with.</p>
+            </form>
+          </div>
+
+          <!-- Mock app screenshot (pure HTML/CSS, no image needed) -->
+          <div class="mock-frame" aria-hidden="true">
+            <div class="mock-titlebar">
+              <i></i><i></i><i></i>
+              <span class="mock-url">vibelton · localhost:8765</span>
+            </div>
+            <div class="mock-body">
+              <div class="mock-main">
+                <div class="mock-card">
+                  <p class="mock-eyebrow">Ableton Live Copilot</p>
+                  <p class="mock-h">Vibelton</p>
+                  <div class="mock-toggle">
+                    <span class="active">Idea Engine</span>
+                    <span>The Finisher</span>
+                  </div>
+                  <div class="mock-prompts">
+                    <div class="mock-prompt">
+                      <b>UK Garage 2-step at 132 BPM in F minor</b>
+                      <small>DRUMS · BASS · KEYS</small>
+                    </div>
+                    <div class="mock-prompt">
+                      <b>Lo-fi beat, dusty keys, swing 62</b>
+                      <small>FULL SKETCH · 8 BARS</small>
+                    </div>
+                    <div class="mock-prompt">
+                      <b>DnB roller, Reese sub, half-time intro</b>
+                      <small>ARRANGEMENT · 32 BARS</small>
+                    </div>
+                    <div class="mock-prompt">
+                      <b>Humanise this clip + add ghost snares</b>
+                      <small>FINISHER · MUTATION</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="mock-side">
+                <div class="mock-card">
+                  <p class="mock-eyebrow">Editable Prompt</p>
+                  <p class="mock-h">Send to Ableton</p>
+                  <div class="mock-textarea">Set tempo to 132. Make a UK Garage 2-step in F minor for 8 bars with chopped snare ghosts and a syncopated sub. Keys: jazzy 7ths, offbeat stabs.</div>
+                  <div class="mock-actions">
+                    <button class="mock-btn secondary">Copy</button>
+                    <button class="mock-btn primary">Send to Ableton</button>
+                  </div>
+                </div>
+                <div class="mock-card">
+                  <p class="mock-eyebrow">Live Status</p>
+                  <div class="mock-status"><span>Connection</span><b>Connected</b></div>
+                  <div class="mock-status"><span>Tempo</span><b>132.0 BPM</b></div>
+                  <div class="mock-status"><span>Tracks</span><b>4</b></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Genre strip ──────────────────────────────────────────── -->
+      <section class="genres" id="genres">
+        <div class="wrap">
+          <p class="label">Genre DNA · 16 styles and counting</p>
+          <div class="genre-row">
+            <span class="genre-chip">House</span>
+            <span class="genre-chip">UK Garage</span>
+            <span class="genre-chip">Drum &amp; Bass</span>
+            <span class="genre-chip">Jungle</span>
+            <span class="genre-chip">Techno</span>
+            <span class="genre-chip">Trance</span>
+            <span class="genre-chip">Trap</span>
+            <span class="genre-chip">Hip Hop</span>
+            <span class="genre-chip">Lo-fi</span>
+            <span class="genre-chip">Reggaeton</span>
+            <span class="genre-chip">Dancehall</span>
+            <span class="genre-chip">Afrobeats</span>
+            <span class="genre-chip">Amapiano</span>
+            <span class="genre-chip">Ambient</span>
+            <span class="genre-chip">Hyperpop</span>
+            <span class="genre-chip">Modern Pop</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Features ─────────────────────────────────────────────── -->
+      <section class="features" id="features">
+        <div class="wrap">
+          <div class="section-title">
+            <p class="eyebrow">Why Vibelton</p>
+            <h2>The Ableton chat assistant that doesn't sound like AI.</h2>
+            <p>Most AI music tools render audio you can't edit, or stamp out generic MIDI that screams "preset." Vibelton sits next to Live, generates editable MIDI in the styles you actually produce in, and gets out of the way.</p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature-card">
+              <span class="pill">Editable MIDI</span>
+              <h3>You own every note.</h3>
+              <p>No rendered audio, no stems-only outputs. Drums, chords, basslines and melodies land as MIDI clips in your project. Quantise, transpose, rewrite — it's yours.</p>
+            </article>
+
+            <article class="feature-card">
+              <span class="pill">Genre DNA</span>
+              <h3>Faithful to the genre, not the algorithm.</h3>
+              <p>Sixteen styles with their own swing, microtiming, bass register, chord voicings and lead phrasing. UK Garage actually shuffles. DnB actually rolls. Trap actually triplets.</p>
+            </article>
+
+            <article class="feature-card amber">
+              <span class="pill">Two modes</span>
+              <h3>Idea Engine and The Finisher.</h3>
+              <p>Idea Engine builds the foundation: tracks, palettes, chord progressions, drum loops, full sketches. The Finisher mutates what you've got — humanise, ghost notes, sibling variations, subtractive arrangements.</p>
+            </article>
+
+            <article class="feature-card">
+              <span class="pill">Local first</span>
+              <h3>Runs on your machine.</h3>
+              <p>A small Python server and a Live Remote Script. Your prompts and your MIDI never have to leave the studio. Bring your own OpenAI key for fancier planning, or keep it deterministic and offline.</p>
+            </article>
+
+            <article class="feature-card">
+              <span class="pill">Humanised</span>
+              <h3>Groove, not grid.</h3>
+              <p>Per-genre swing, weak-beat velocity curves, ghost notes, bar-to-bar variation, fills on the right boundaries. Built on the strategies in Dennis DeSantis's <i>Making Music</i> and decades of producer YouTube.</p>
+            </article>
+
+            <article class="feature-card">
+              <span class="pill">Open</span>
+              <h3>No subscription required.</h3>
+              <p>Vibelton is being built in the open. The bridge is yours, the MIDI library is yours, the prompt library is yours. Pricing, when it lands, will be one-time and honest.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Final CTA ────────────────────────────────────────────── -->
+      <section class="cta-final" id="waitlist">
+        <div class="wrap">
+          <p class="eyebrow">Beta is coming</p>
+          <h2>Snowball from zero.</h2>
+          <p>One email when the public beta opens. No drip campaigns, no "limited spots", no countdown timers. Just a working build and a release note.</p>
+
+          <form class="hero-form" id="waitlistBottom" action="" method="post" style="margin-top: 28px;">
+            <input type="email" name="email" placeholder="you@studio.com" required aria-label="Email address" />
+            <button class="primary-button" type="submit">Join the waitlist</button>
+            <p class="form-note" style="text-align: center; width: 100%;">Built for Ableton Live 12. Mac and Windows.</p>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <span>© 2026 Vibelton. Built for Ableton Live 12. Not affiliated with Ableton AG.</span>
+        <span>
+          <a href="https://github.com/jimbrouw/vibelton" target="_blank" rel="noopener">GitHub</a>
+          &nbsp;·&nbsp;
+          <a href="mailto:hello@vibelton.live">hello@vibelton.live</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,39 @@
+{
+  "name": "new-project-3",
+  "version": "1.0.0",
+  "description": "A local natural-language copilot for Ableton Live 12.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "tests"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jimbrouw/vibelton.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/jimbrouw/vibelton/issues"
+  },
+  "homepage": "https://github.com/jimbrouw/vibelton#readme",
+  "dependencies": {
+    "@tonejs/midi": "^2.0.28",
+    "next": "^16.2.4",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "typescript": "^6.0.3"
+  }
+}

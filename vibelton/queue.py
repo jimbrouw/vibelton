@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 
-QUEUE_DIR = Path.home() / ".ableton_copilot"
+QUEUE_DIR = Path.home() / ".vibelton"
 COMMANDS_FILE = QUEUE_DIR / "commands.jsonl"
 EVENTS_FILE = QUEUE_DIR / "events.jsonl"
 STATE_FILE = QUEUE_DIR / "state.json"
@@ -32,6 +32,19 @@ def enqueue(actions: list[dict[str, Any]], source: str = "chat") -> dict[str, An
     with COMMANDS_FILE.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(command, separators=(",", ":")) + "\n")
     return command
+
+
+def write_event(event_type: str, message: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
+    ensure_queue()
+    event = {
+        "type": event_type,
+        "message": message,
+        "data": data or {},
+        "created_at": time.time(),
+    }
+    with EVENTS_FILE.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, separators=(",", ":")) + "\n")
+    return event
 
 
 def recent_events(limit: int = 40) -> list[dict[str, Any]]:

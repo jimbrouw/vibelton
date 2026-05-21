@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-SCRIPTS = ["AbletonCopilot", "AbletonCopilotArranger"]
+SCRIPTS = ["Vibelton"]
 
 
 def user_library() -> Path:
@@ -34,10 +34,10 @@ def main() -> None:
         shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         installed.append(target)
 
-    print("Installed Ableton remote scripts:")
+    print("Installed Ableton remote script:")
     for target in installed:
         print(f"- {target}")
-    print("Restart Ableton Live, then select AbletonCopilotArranger in Settings -> Link, Tempo & MIDI.")
+    print("Restart Ableton Live, then select Vibelton in Settings -> Link, Tempo & MIDI.")
 
 
 if __name__ == "__main__":

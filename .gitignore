@@ -3,3 +3,13 @@ __pycache__/
 *.pyc
 .playwright-cli/
 output/
+node_modules/
+.env*.local
+
+# Next.js & TypeScript
+.next/
+out/
+tsconfig.tsbuildinfo
+
+# AI Agent artifacts
+artifacts/

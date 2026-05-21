@@ -4,7 +4,9 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from .genre_dna import lookup_genre, pick_pattern, GenreDNA, DEFAULT_DNA
+from .genre_dna import lookup_genre, pick_pattern, GenreDNA, DEFAULT_DNA, GrooveProfile
+from .harmony import detect_colour, plan_harmony
+from .midi_library import seeded_rng, stable_seed
 
 
 NOTE_NAMES = {
@@ -49,6 +51,31 @@ ROMAN_DEGREES = {
 
 
 @dataclass(frozen=True)
+class MelodyRule:
+    contour: tuple[int, ...]
+    rest_density: float
+    ending_degree: int
+    ending_duration: float
+
+
+MELODY_RULES: dict[str, MelodyRule] = {
+    "house": MelodyRule(contour=(0, 2, 4, 2), rest_density=0.08, ending_degree=4, ending_duration=0.55),
+    "uk garage": MelodyRule(contour=(0, 0, 2, -1), rest_density=0.16, ending_degree=2, ending_duration=0.45),
+    "drum n bass": MelodyRule(contour=(0, 7, 12, 7), rest_density=0.04, ending_degree=6, ending_duration=0.32),
+    "jungle": MelodyRule(contour=(0, 5, 7, 12), rest_density=0.1, ending_degree=4, ending_duration=0.4),
+    "techno": MelodyRule(contour=(0, 0, 0, 2), rest_density=0.02, ending_degree=0, ending_duration=0.24),
+    "trance": MelodyRule(contour=(0, 4, 7, 12), rest_density=0.04, ending_degree=4, ending_duration=0.45),
+    "trap": MelodyRule(contour=(0, -2, -5, -7), rest_density=0.34, ending_degree=0, ending_duration=0.72),
+    "hip hop": MelodyRule(contour=(0, -2, 0, 2), rest_density=0.24, ending_degree=0, ending_duration=0.58),
+    "reggaeton": MelodyRule(contour=(0, 2, 4, 7), rest_density=0.12, ending_degree=4, ending_duration=0.42),
+    "ambient": MelodyRule(contour=(0, 0, 7, 12), rest_density=0.46, ending_degree=4, ending_duration=1.4),
+    "pop": MelodyRule(contour=(0, 2, 4, 7), rest_density=0.1, ending_degree=0, ending_duration=0.55),
+    "afrobeats": MelodyRule(contour=(0, 2, 5, 7), rest_density=0.14, ending_degree=4, ending_duration=0.4),
+    "amapiano": MelodyRule(contour=(0, 0, 2, 5), rest_density=0.12, ending_degree=0, ending_duration=0.32),
+}
+
+
+@dataclass(frozen=True)
 class Note:
     pitch: int
     start: float
@@ -77,15 +104,87 @@ def note_number(name: str, octave: int = 4) -> int:
     return 12 * (octave + 1) + NOTE_NAMES[clean]
 
 
-def infer_key(text: str) -> tuple[str, str]:
+DEFAULT_GENRE_KEYS = {
+    "house": [("a", "minor"), ("c", "minor"), ("g", "minor"), ("d", "minor")],
+    "uk garage": [("a", "minor"), ("b", "minor"), ("d", "minor"), ("e", "minor")],
+    "drum n bass": [("f", "minor"), ("f#", "minor"), ("g", "minor"), ("e", "minor")],
+    "jungle": [("f", "minor"), ("f#", "minor"), ("g", "minor"), ("eb", "minor")],
+    "techno": [("a", "minor"), ("c", "minor"), ("f#", "minor"), ("b", "minor")],
+    "trance": [("g", "minor"), ("a", "minor"), ("b", "minor"), ("f#", "minor")],
+    "trap": [("c#", "minor"), ("d", "minor"), ("f", "minor"), ("a", "minor")],
+    "hip hop": [("c", "minor"), ("f", "minor"), ("g", "minor"), ("a", "minor")],
+    "reggaeton": [("g", "minor"), ("c", "minor"), ("d", "minor"), ("a", "minor")],
+    "downtempo": [("a", "minor"), ("d", "minor"), ("g", "minor"), ("e", "minor")],
+    "ambient": [("c", "major"), ("f", "major"), ("g", "major"), ("a", "minor")],
+    "pop": [("c", "major"), ("g", "major"), ("f", "major"), ("a", "minor")],
+    "afrobeats": [("a", "minor"), ("b", "minor"), ("e", "minor"), ("g", "major")],
+    "amapiano": [("e", "minor"), ("a", "minor"), ("b", "minor"), ("c", "major")],
+    "hyperpop": [("c", "major"), ("f", "major"), ("g", "major"), ("d", "major")],
+}
+
+
+def infer_key(text: str, genre: str = "") -> tuple[str, str]:
+    import re
+    from .genre_dna import detect_style_from_text
     lowered = text.lower().replace("♯", "#").replace("♭", "b")
-    mode = "minor" if "minor" in lowered or "dark" in lowered else "major"
+    
+    # 1. Check Camelot Wheel codes
+    camelot_match = re.search(r"\b(1[0-2]|[1-9])\s*([ab])\b", lowered)
+    if camelot_match:
+        code = f"{camelot_match.group(1)}{camelot_match.group(2)}"
+        camelot_map = {
+            "1a": ("ab", "minor"), "2a": ("eb", "minor"), "3a": ("bb", "minor"), "4a": ("f", "minor"),
+            "5a": ("c", "minor"), "6a": ("g", "minor"), "7a": ("d", "minor"), "8a": ("a", "minor"),
+            "9a": ("e", "minor"), "10a": ("b", "minor"), "11a": ("f#", "minor"), "12a": ("c#", "minor"),
+            "1b": ("b", "major"), "2b": ("f#", "major"), "3b": ("db", "major"), "4b": ("ab", "major"),
+            "5b": ("eb", "major"), "6b": ("bb", "major"), "7b": ("f", "major"), "8b": ("c", "major"),
+            "9b": ("g", "major"), "10b": ("d", "major"), "11b": ("a", "major"), "12b": ("e", "major"),
+        }
+        if code in camelot_map:
+            return camelot_map[code]
+
+    # 2. Check for explicit root and mode in the text
+    mode_explicit = None
+    if "minor" in lowered or "dark" in lowered:
+        mode_explicit = "minor"
+    elif "major" in lowered:
+        mode_explicit = "major"
+        
+    explicit_root = None
     for name in sorted(NOTE_NAMES, key=len, reverse=True):
-        if f"{name} {mode}" in lowered or f"in {name}" in lowered:
-            return name, mode
-    if "am" in lowered or "a minor" in lowered:
-        return "a", "minor"
-    return ("a", "minor") if mode == "minor" else ("c", "major")
+        if f"{name} major" in lowered or f"{name} minor" in lowered or f"in {name}" in lowered:
+            explicit_root = name
+            break
+            
+    if not explicit_root:
+        if "am" in lowered or "a minor" in lowered:
+            explicit_root = "a"
+            mode_explicit = "minor"
+
+    # If we have an explicit root, pair it with mode_explicit
+    if explicit_root:
+        resolved_mode = mode_explicit or ("minor" if "minor" in lowered or "dark" in lowered else "major")
+        return explicit_root, resolved_mode
+
+    # 3. No explicit root was specified. Fallback to genre-specific defaults.
+    target_genre = genre
+    if not target_genre:
+        target_genre = detect_style_from_text(text)
+
+    target_genre = target_genre.strip().lower() if target_genre else ""
+
+    pool = DEFAULT_GENRE_KEYS.get(target_genre)
+    if pool:
+        if mode_explicit:
+            filtered_pool = [k for k in pool if k[1] == mode_explicit]
+            if filtered_pool:
+                pool = filtered_pool
+        seed = sum(ord(c) for c in text)
+        return pool[seed % len(pool)]
+
+    # 4. Ultimate fallback if no genre key pool is found
+    resolved_mode = mode_explicit or ("minor" if "minor" in lowered or "dark" in lowered else "major")
+    return ("a", "minor") if resolved_mode == "minor" else ("c", "major")
 
 
 def chord_pitches(root: str, mode: str, degree: str, octave: int = 3) -> list[int]:
@@ -107,7 +206,13 @@ def chord_pitches(root: str, mode: str, degree: str, octave: int = 3) -> list[in
     return [base, third_pitch, fifth_pitch]
 
 
-def generate_chords(text: str, bars: int = 4) -> list[dict[str, Any]]:
+def generate_chords(text: str, bars: int = 4, _bypass_genre: bool = False) -> list[dict[str, Any]]:
+    if not _bypass_genre:
+        from .genre_dna import detect_style_from_text
+        style = detect_style_from_text(text)
+        if style:
+            return genre_chords(text, bars=bars, genre=style)
+            
     root, mode = infer_key(text)
     degrees = COMMON_PROGRESSIONS[mode]
     notes: list[Note] = []
@@ -118,7 +223,13 @@ def generate_chords(text: str, bars: int = 4) -> list[dict[str, Any]]:
     return [note.to_live() for note in notes]
 
 
-def generate_bassline(text: str, bars: int = 4) -> list[dict[str, Any]]:
+def generate_bassline(text: str, bars: int = 4, _bypass_genre: bool = False) -> list[dict[str, Any]]:
+    if not _bypass_genre:
+        from .genre_dna import detect_style_from_text
+        style = detect_style_from_text(text)
+        if style:
+            return genre_bassline(text, bars=bars, genre=style)
+            
     root, mode = infer_key(text)
     degrees = COMMON_PROGRESSIONS[mode]
     notes: list[Note] = []
@@ -299,9 +410,58 @@ def _pattern_seed(text: str, energy: str, bars: int, salt: str = "") -> int:
     return sum(ord(c) for c in f"{text.lower()}:{energy}:{bars}:{salt}")
 
 
+def _groove_note(note: dict[str, Any], profile: GrooveProfile, bpm: int, seed: int | str, role: str) -> dict[str, Any]:
+    copy = dict(note)
+    start = float(copy.get("start", 0.0))
+    duration = float(copy.get("duration", 0.25))
+    velocity = int(copy.get("velocity", 96))
+    beat_ms = 60000.0 / max(20, bpm)
+    rng = seeded_rng({"seed": seed, "role": role, "note": copy})
+
+    subdivision = int(round((start % 1.0) / 0.25)) % 4
+    push = profile.push_pull_per_subdivision[subdivision % len(profile.push_pull_per_subdivision)]
+    jitter_beats = rng.uniform(-profile.position_jitter_ms, profile.position_jitter_ms) / beat_ms
+    length_jitter = rng.uniform(-profile.length_jitter, profile.length_jitter)
+    curve = profile.weak_beat_curve[subdivision % len(profile.weak_beat_curve)]
+    velocity_jitter = rng.randint(-profile.velocity_jitter, profile.velocity_jitter)
+
+    if role == "kick":
+        curve = max(curve, 0.94)
+    elif role in {"hat", "percussion"}:
+        curve *= 0.94
+    elif role in {"chord", "pad"}:
+        jitter_beats *= 0.35
+        length_jitter *= 0.35
+
+    copy["start"] = round(max(0.0, start + push + jitter_beats), 4)
+    copy["duration"] = round(max(0.0312, duration + length_jitter), 4)
+    copy["velocity"] = int(clamp(round(velocity * curve) + velocity_jitter, 1, 127))
+    return copy
+
+
+def apply_groove(
+    notes: list[dict[str, Any]],
+    dna: GenreDNA,
+    seed: int | str,
+    role: str,
+) -> list[dict[str, Any]]:
+    grooved = [_groove_note(note, dna.groove_profile, dna.bpm_default, seed, role) for note in notes]
+    return sorted(grooved, key=lambda item: (float(item["start"]), int(item["pitch"])))
+
+
+def drum_role_for_pitch(pitch: int) -> str:
+    if pitch == 36:
+        return "kick"
+    if pitch in {38, 39}:
+        return "snare"
+    if pitch in {42, 46, 49}:
+        return "hat"
+    return "percussion"
+
+
 def genre_bassline(text: str, bars: int = 4, energy: str = "main", genre: str = "") -> list[dict[str, Any]]:
     """Generate a bassline using the GenreDNA profile for the given genre."""
-    root, mode = infer_key(text)
+    root, mode = infer_key(text, genre=genre)
     dna = lookup_genre(genre)
     seed = _pattern_seed(text, energy, bars, "bass")
     pattern = pick_pattern(dna.bass_patterns, seed)
@@ -329,8 +489,8 @@ def genre_bassline(text: str, bars: int = 4, energy: str = "main", genre: str = 
                 duration = duration * 1.3
 
             pitch = chord_root + interval
-            # Keep bass in a sane range (MIDI 24-60)
-            while pitch > 60:
+            # Keep bass in a sane range (MIDI 24-55)
+            while pitch > 55:
                 pitch -= 12
             while pitch < 24:
                 pitch += 12
@@ -343,12 +503,22 @@ def genre_bassline(text: str, bars: int = 4, energy: str = "main", genre: str = 
                 "mute": False,
             })
 
-    return notes
+    grooved = apply_groove(notes, dna, seed, "bass")
+    if dna.name == "trap" and len(grooved) > 1:
+        for i in range(len(grooved) - 1):
+            curr_note = grooved[i]
+            next_note = grooved[i + 1]
+            gap = float(next_note["start"]) - (float(curr_note["start"]) + float(curr_note["duration"]))
+            if gap < 0.25:
+                curr_note["duration"] = round(float(next_note["start"]) - float(curr_note["start"]) + 0.1, 4)
+                next_note["velocity"] = int(clamp(max(110, int(next_note["velocity"]) + 15), 1, 127))
+                next_note["pitch"] = int(clamp(int(next_note["pitch"]) + 12, 0, 127))
+    return grooved
 
 
 def genre_lead(text: str, bars: int = 4, energy: str = "main", genre: str = "") -> list[dict[str, Any]]:
     """Generate a lead/hook using the GenreDNA profile for the given genre."""
-    root, mode = infer_key(text)
+    root, mode = infer_key(text, genre=genre)
     dna = lookup_genre(genre)
     seed = _pattern_seed(text, energy, bars, "lead")
     phrase = pick_pattern(dna.lead_phrases, seed)
@@ -392,30 +562,91 @@ def genre_lead(text: str, bars: int = 4, energy: str = "main", genre: str = "") 
                 "mute": False,
             })
 
-    return notes
+    notes = shape_melody(notes, dna.name, seed, scale, base, energy)
+    return apply_groove(notes, dna, seed, "lead")
 
 
-def genre_chords(text: str, bars: int = 4, energy: str = "main", genre: str = "") -> list[dict[str, Any]]:
+def shape_melody(
+    notes: list[dict[str, Any]],
+    style: str,
+    seed: int,
+    scale: list[int],
+    base: int,
+    energy: str,
+) -> list[dict[str, Any]]:
+    rule = MELODY_RULES.get(style, MELODY_RULES["house"])
+    phrase_bars = 2 if energy == "break" else 4
+    shaped: list[dict[str, Any]] = []
+
+    for index, note in enumerate(notes):
+        start = float(note["start"])
+        bar = int(start // 4)
+        local_beat = start - bar * 4
+        is_phrase_late = (bar + 1) % phrase_bars == 0 and local_beat >= 2.5
+        rest_score = stable_seed({"seed": seed, "style": style, "index": index, "bar": bar}) % 1000 / 1000
+        if local_beat > 0.25 and not is_phrase_late and rest_score < rule.rest_density:
+            continue
+
+        copy = dict(note)
+        contour = rule.contour[bar % len(rule.contour)]
+        copy["pitch"] = int(clamp(int(copy["pitch"]) + contour, 0, 127))
+        if energy == "intro":
+            copy["velocity"] = int(clamp(int(copy["velocity"]) - 8, 1, 127))
+        shaped.append(copy)
+
+    if not shaped:
+        return notes
+
+    phrase_last_indexes: dict[int, int] = {}
+    for index, note in enumerate(shaped):
+        phrase = int(float(note["start"]) // (phrase_bars * 4))
+        if phrase not in phrase_last_indexes or float(note["start"]) >= float(shaped[phrase_last_indexes[phrase]]["start"]):
+            phrase_last_indexes[phrase] = index
+
+    target_class = scale[rule.ending_degree % len(scale)]
+    ending_candidates = [base + target_class + octave * 12 for octave in range(-2, 3)]
+    for index in phrase_last_indexes.values():
+        note = shaped[index]
+        note["pitch"] = int(clamp(nearest_pitch(int(note["pitch"]), ending_candidates), 0, 127))
+        note["duration"] = round(max(float(note["duration"]), rule.ending_duration), 4)
+        note["velocity"] = int(clamp(int(note["velocity"]) + 4, 1, 127))
+
+    return shaped
+
+
+def nearest_pitch(current: int, candidates: list[int]) -> int:
+    return min(candidates, key=lambda pitch: abs(pitch - current))
+
+
+def genre_chords(text: str, bars: int = 4, energy: str = "main", genre: str = "", parallel_motion: bool = False) -> list[dict[str, Any]]:
     """Generate chords using the GenreDNA profile for the given genre."""
-    root, mode = infer_key(text)
+    root, mode = infer_key(text, genre=genre)
     dna = lookup_genre(genre)
     seed = _pattern_seed(text, energy, bars, "chords")
     rhythm = pick_pattern(dna.chord_rhythms, seed)
     if not rhythm:
         return generate_chords(text, bars)
 
-    degrees = COMMON_PROGRESSIONS[mode]
+    lowered_text = text.lower()
+    if "parallel" in lowered_text or "sampling" in lowered_text or "lock chord" in lowered_text:
+        parallel_motion = True
+
+    colour = detect_colour(text)
+    harmony = plan_harmony(
+        root_midi=note_number(root, 4),
+        mode=mode,
+        style=dna.name,
+        colour=colour,
+        bars=bars,
+        octave=dna.chord_octave,
+        seed=seed,
+        extensions=dna.chord_extensions,
+        parallel_motion=parallel_motion,
+    )
     notes: list[dict[str, Any]] = []
 
     for bar in range(bars):
-        degree = degrees[bar % len(degrees)]
-        pitches = chord_pitches(root, mode, degree, octave=dna.chord_octave)
-
-        # Add extensions from the DNA (7ths, 9ths, etc.)
-        if dna.chord_extensions:
-            root_pitch = pitches[0]
-            for ext in dna.chord_extensions:
-                pitches.append(root_pitch + ext)
+        pitches = harmony.voiced_chords[bar % len(harmony.voiced_chords)]
 
         # Determine duration based on style
         if dna.chord_style == "pad":
@@ -437,7 +668,7 @@ def genre_chords(text: str, bars: int = 4, energy: str = "main", genre: str = ""
                     "mute": False,
                 })
 
-    return notes
+    return apply_groove(notes, dna, seed, "chord")
 
 
 def genre_drums(bars: int = 4, energy: str = "main", genre: str = "") -> list[dict[str, Any]]:
@@ -452,6 +683,7 @@ def genre_drums(bars: int = 4, energy: str = "main", genre: str = "") -> list[di
     kick_pat = pick_pattern(dna.kick_patterns, seed)
     snare_pat = pick_pattern(dna.snare_patterns, seed)
     hat_pat = pick_pattern(dna.hat_patterns, seed + 1)
+    mutation_rng = seeded_rng({"seed": seed, "kind": "bar_to_bar_drum_mutation"})
 
     notes: list[dict[str, Any]] = []
 
@@ -478,6 +710,11 @@ def genre_drums(bars: int = 4, energy: str = "main", genre: str = "") -> list[di
 
         # Hats
         for i, beat in enumerate(hat_pat):
+            if energy in {"main", "build"}:
+                phase = bar % 4
+                keep_probability = 0.9 if phase == 1 else (0.7 if phase == 2 else 1.0)
+                if mutation_rng.random() > keep_probability:
+                    continue
             vel = 58 + (i % 4) * 8
             if energy == "build":
                 vel = min(127, vel + (bar % 4) * 3)
@@ -497,4 +734,8 @@ def genre_drums(bars: int = 4, energy: str = "main", genre: str = "") -> list[di
                     "mute": False,
                 })
 
-    return notes
+    grooved = [
+        _groove_note(note, dna.groove_profile, dna.bpm_default, {"seed": seed, "index": index}, drum_role_for_pitch(int(note["pitch"])))
+        for index, note in enumerate(notes)
+    ]
+    return sorted(grooved, key=lambda item: (float(item["start"]), int(item["pitch"])))

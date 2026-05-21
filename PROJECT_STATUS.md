@@ -4,7 +4,7 @@
 **Status**: Development & Iteration Phase  
 
 ## Overview
-Vibelton (Ableton Copilot) is successfully running its server bridge to Ableton Live 12. The project's core functionality—translating natural language into executable DAW actions, local and LLM-based planning, and generative music engines—is functional. We are currently executing a major roadmap (`IMPROVEMENTS_PLAN.md`) to move Vibelton from generating generic MIDI to creating highly professional, release-ready arrangements.
+Vibelton is successfully running its server bridge to Ableton Live 12. The project's core functionality—translating natural language into executable DAW actions, local and LLM-based planning, and generative music engines—is functional. We are currently executing a major roadmap (`IMPROVEMENTS_PLAN.md`) to move Vibelton from generating generic MIDI to creating highly professional, release-ready arrangements.
 
 ## Recent Achievements
 The most recent efforts have focused on implementing "DeSantis Creative Patterns" and upgrading the "Music Brain":
@@ -14,7 +14,7 @@ The most recent efforts have focused on implementing "DeSantis Creative Patterns
 - **Genre DNA Profiles:** Replaced generic generation with a structured `GenreDNA` system that uses style-specific templates for drums, bass, chords, and leads.
 
 ## Current Architecture State
-- **Server:** Python-based HTTP server running successfully (`python3 -m ableton_copilot.server`).
+- **Server:** Python-based HTTP server running successfully (`python3 -m vibelton.server`).
 - **Bridge:** Custom Python Remote Script successfully handles bidirectional queue syncing (`commands.jsonl`, `events.jsonl`, `state.json`).
 - **Planners:** Both the LLM-based OpenAI planner and the fast deterministic local planner are operational and actively serving commands.
 
