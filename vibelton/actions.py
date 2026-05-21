@@ -410,6 +410,36 @@ def _pattern_seed(text: str, energy: str, bars: int, salt: str = "") -> int:
     return sum(ord(c) for c in f"{text.lower()}:{energy}:{bars}:{salt}")
 
 
+def _pick_bar_pattern(
+    patterns: tuple | list,
+    bar: int,
+    bars: int,
+    energy: str,
+    seed: int,
+) -> list:
+    """Return the pattern variant for this specific bar using a musical mutation schedule.
+
+    With a bank of N patterns (N > 1):
+    - bar % 4 == 3 in main/build sections → fill variant (base index + N-1, mod N).
+    - Odd 4-bar phrases (bar // 4 is odd) → alt variant (base index + 1).
+    - All other bars → base variant (seed % N).
+    Single-pattern banks always return that pattern. Deterministic from seed + bar.
+    """
+    n = len(patterns)
+    if n == 0:
+        return []
+    if n == 1:
+        return list(patterns[0])
+    base_idx = seed % n
+    alt_idx = (base_idx + 1) % n
+    fill_idx = (base_idx + n - 1) % n
+    if (bar % 4 == 3) and energy in ("main", "build"):
+        return list(patterns[fill_idx])
+    if (bar // 4) % 2 == 1:
+        return list(patterns[alt_idx])
+    return list(patterns[base_idx])
+
+
 def _groove_note(note: dict[str, Any], profile: GrooveProfile, bpm: int, seed: int | str, role: str) -> dict[str, Any]:
     copy = dict(note)
     start = float(copy.get("start", 0.0))
@@ -426,7 +456,10 @@ def _groove_note(note: dict[str, Any], profile: GrooveProfile, bpm: int, seed: i
     velocity_jitter = rng.randint(-profile.velocity_jitter, profile.velocity_jitter)
 
     if role == "kick":
+        jitter_beats *= 0.3   # kicks sit tighter than hi-hats in real drummers
         curve = max(curve, 0.94)
+    elif role == "snare":
+        jitter_beats *= 0.7   # snare slightly looser than kick, tighter than hat
     elif role in {"hat", "percussion"}:
         curve *= 0.94
     elif role in {"chord", "pad"}:
@@ -464,8 +497,7 @@ def genre_bassline(text: str, bars: int = 4, energy: str = "main", genre: str = 
     root, mode = infer_key(text, genre=genre)
     dna = lookup_genre(genre)
     seed = _pattern_seed(text, energy, bars, "bass")
-    pattern = pick_pattern(dna.bass_patterns, seed)
-    if not pattern:
+    if not dna.bass_patterns:
         return generate_bassline(text, bars)
 
     base_pitch = note_number(root, dna.bass_octave)
@@ -476,6 +508,7 @@ def genre_bassline(text: str, bars: int = 4, energy: str = "main", genre: str = 
     for bar in range(bars):
         degree = degrees[bar % len(degrees)]
         chord_root = chord_pitches(root, mode, degree, octave=dna.bass_octave)[0]
+        pattern = _pick_bar_pattern(dna.bass_patterns, bar, bars, energy, seed)
 
         for beat, interval, duration, velocity in pattern:
             # Adjust for energy
@@ -521,8 +554,7 @@ def genre_lead(text: str, bars: int = 4, energy: str = "main", genre: str = "") 
     root, mode = infer_key(text, genre=genre)
     dna = lookup_genre(genre)
     seed = _pattern_seed(text, energy, bars, "lead")
-    phrase = pick_pattern(dna.lead_phrases, seed)
-    if not phrase:
+    if not dna.lead_phrases:
         return generate_melody(text, bars)
 
     scale = SCALES.get(mode, SCALES["minor"])
@@ -530,6 +562,7 @@ def genre_lead(text: str, bars: int = 4, energy: str = "main", genre: str = "") 
     notes: list[dict[str, Any]] = []
 
     for bar in range(bars):
+        phrase = _pick_bar_pattern(dna.lead_phrases, bar, bars, energy, seed)
         for beat, degree, duration, velocity in phrase:
             # Map scale degree to pitch
             octave_shift = 0
@@ -642,6 +675,7 @@ def genre_chords(text: str, bars: int = 4, energy: str = "main", genre: str = ""
         seed=seed,
         extensions=dna.chord_extensions,
         parallel_motion=parallel_motion,
+        energy=energy,
     )
     notes: list[dict[str, Any]] = []
 
@@ -680,15 +714,15 @@ def genre_drums(bars: int = 4, energy: str = "main", genre: str = "") -> list[di
     """
     dna = lookup_genre(genre)
     seed = _pattern_seed(genre, energy, bars, "drums")
-    kick_pat = pick_pattern(dna.kick_patterns, seed)
-    snare_pat = pick_pattern(dna.snare_patterns, seed)
-    hat_pat = pick_pattern(dna.hat_patterns, seed + 1)
     mutation_rng = seeded_rng({"seed": seed, "kind": "bar_to_bar_drum_mutation"})
 
     notes: list[dict[str, Any]] = []
 
     for bar in range(bars):
         start = bar * 4.0
+        kick_pat = _pick_bar_pattern(dna.kick_patterns, bar, bars, energy, seed)
+        snare_pat = _pick_bar_pattern(dna.snare_patterns, bar, bars, energy, seed)
+        hat_pat = _pick_bar_pattern(dna.hat_patterns, bar, bars, energy, seed + 1)
 
         # Kicks
         for beat in kick_pat:

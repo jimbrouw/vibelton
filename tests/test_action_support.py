@@ -75,6 +75,7 @@ class PlannerActionSupportTest(unittest.TestCase):
                 "Percussion",
                 "Hh / Sh / Rd +",
                 "Bd",
+                "FX / Riser",
             ],
             created,
         )

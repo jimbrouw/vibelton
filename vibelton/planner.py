@@ -533,6 +533,50 @@ def generate_crash_notes() -> list[dict[str, Any]]:
     }]
 
 
+def _build_section_transitions(
+    sections: list[tuple[str, int, str]],
+) -> list[dict[str, Any]]:
+    """Return actions that add a FX / Riser track with riser and crash clips at
+    section boundaries.  Called from expanded_song_sketch_plan after the main
+    track/clip creation loop.
+
+    - Build sections get a rising sweep clip (pitch ramp, velocity ramp).
+    - Main sections that immediately follow a build get a single crash cymbal clip.
+    """
+    if not any(energy == "build" for _, _, energy in sections):
+        return []
+
+    actions: list[dict[str, Any]] = [
+        {"type": "create_midi_track", "name": "FX / Riser"},
+        {"type": "set_track_volume", "track_name": "FX / Riser", "db": -12},
+    ]
+
+    prev_energy = ""
+    for scene_index, (section, bars, energy) in enumerate(sections):
+        length_beats = bars * 4
+        if energy == "build":
+            actions.append({
+                "type": "create_midi_clip",
+                "track_name": "FX / Riser",
+                "clip_name": f"{section} riser",
+                "scene_index": scene_index,
+                "length_beats": length_beats,
+                "notes": generate_riser_notes(length_beats),
+            })
+        elif energy == "main" and prev_energy == "build":
+            actions.append({
+                "type": "create_midi_clip",
+                "track_name": "FX / Riser",
+                "clip_name": f"{section} crash",
+                "scene_index": scene_index,
+                "length_beats": length_beats,
+                "notes": generate_crash_notes(),
+            })
+        prev_energy = energy
+
+    return actions
+
+
 def existing_session_finisher_plan(message: str, vst_map: dict[str, str] | None = None) -> dict[str, Any]:
     from .queue import current_state
     lowered = message.lower()
@@ -1130,6 +1174,8 @@ def expanded_song_sketch_plan(message: str, vst_map: dict[str, str] | None = Non
             actions.append(scene_clip("Drum Instrument", section, "drums", scene_index, library_drums(message, bars, energy, genre=style), bars))
         if "Ambience" in track_names:
             actions.append(scene_clip("Ambience", section, "texture", scene_index, ambience_notes(message, bars, energy, style), bars))
+
+    actions.extend(_build_section_transitions(sections))
 
     volume_actions = []
     default_volumes = {
