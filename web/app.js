@@ -910,9 +910,13 @@ const clearPrompt = document.querySelector("#clearPrompt");
 const copyPrompt = document.querySelector("#copyPrompt");
 const makeSongPrompt = document.querySelector("#makeSongPrompt");
 
-let activeTab = activeLibrary[0].id;
+let activeTab = defaultTabForLibrary(activeLibrary);
 let currentMode = "inspiration"; // inspiration, songmaker, or finisher
 let lastSentPrompt = "";
+
+function defaultTabForLibrary(library) {
+  return library.some((category) => category.id === "genres") ? "genres" : library[0].id;
+}
 
 // --- VST scanning state ---
 let scannedVstPlugins = [];
@@ -1146,7 +1150,7 @@ modeToggle.addEventListener("click", (event) => {
   button.classList.add("active");
 
   if (newMode !== "songmaker") {
-    activeTab = activeLibrary[0].id;
+    activeTab = defaultTabForLibrary(activeLibrary);
   }
   renderTabs();
   renderPromptGrid();
@@ -1169,6 +1173,13 @@ search.addEventListener("input", renderPromptGrid);
 });
 
 promptGrid.addEventListener("click", (event) => {
+  const genreCard = event.target.closest("[data-genre-prompt]");
+  if (genreCard) {
+    prompt.value = customizePrompt(genreCard.dataset.genrePrompt);
+    prompt.focus();
+    return;
+  }
+
   const finderChip = event.target.closest("[data-finder-chip]");
   if (finderChip) {
     finderSelections[finderChip.dataset.group] = finderChip.dataset.value;
@@ -1251,7 +1262,11 @@ form.addEventListener("submit", async (event) => {
 function renderTabs() {
   tabs.innerHTML = "";
   if (currentMode === "songmaker") return;
-  activeLibrary.forEach((category) => {
+  const orderedLibrary = [
+    ...activeLibrary.filter((category) => category.id === "genres"),
+    ...activeLibrary.filter((category) => category.id !== "genres"),
+  ];
+  orderedLibrary.forEach((category) => {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.tab = category.id;
@@ -1284,6 +1299,10 @@ function renderPromptGrid() {
   resultCount.textContent = `${prompts.length} prompt${prompts.length === 1 ? "" : "s"}`;
   promptGrid.innerHTML = "";
 
+  if (category.id === "genres") {
+    renderGenreCards();
+  }
+
   prompts.forEach((item) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -1302,6 +1321,49 @@ function renderPromptGrid() {
     empty.textContent = "No prompts match that search.";
     promptGrid.appendChild(empty);
   }
+}
+
+function renderGenreCards() {
+  const wrapper = document.createElement("section");
+  wrapper.className = "genre-card-panel";
+  wrapper.innerHTML = `
+    <details class="genre-parent-card">
+      <summary>
+        <span>
+          <strong>House</strong>
+          <small>Classic / Acid / Deep / Garage / Disco</small>
+        </span>
+      </summary>
+      <div class="genre-sub-cards">
+        <button class="prompt-button genre-sub-card" type="button" data-genre-prompt="Create a detailed Classic, Chicago, and Jacking House song sketch at 124-128 BPM with raw TR-707/TR-909-style drum-machine grooves, a jacking bassline, punchy claps on 2 and 4, swung open hats, short vocal shouts, gospel or disco piano stabs, organ bass movement, and a warehouse-friendly arrangement with a DJ intro, stripped groove sections, call-and-response hook moments, a piano or organ breakdown, a tough final jack section, and an outro. Keep it physical, repetitive, simple, and club-functional rather than overly polished.">
+          <span>Classic, Chicago, and Jacking House</span>
+          <small>124-128 BPM / Raw / Jacking</small>
+          <p>Drum-machine swing, organ or piano stabs, short vocal shouts, and a body-led Chicago warehouse groove.</p>
+        </button>
+        <button class="prompt-button genre-sub-card" type="button" data-genre-prompt="Create a detailed Acid House song sketch at 122-128 BPM with a Roland TB-303-style resonant bassline, squelchy filter automation, repetitive hypnotic riffing, raw machine-funk drums, tight claps, bright hats, psychedelic delay throws, and gradual mixer-style movement. Build a DJ-friendly structure with an acid intro, main 303 groove, filter-rise tension, sparse breakdown, louder acid jack drop, and extended outro. Make the 303 line the central hook and keep the arrangement hypnotic, ravey, and tactile.">
+          <span>Acid House</span>
+          <small>122-128 BPM / 303 / Hypnotic</small>
+          <p>Squelchy 303 bass, raw drum machines, filter movement, delay, and repetitive warehouse-rave pressure.</p>
+        </button>
+        <button class="prompt-button genre-sub-card" type="button" data-genre-prompt="Create a detailed Deep House song sketch at 118-124 BPM with warm seventh and ninth chords, soulful or jazzy harmony, understated drums, a subby syncopated bassline, soft pads, Rhodes-style keys, subtle percussion, and restrained emotional atmosphere. Arrange it with a soft drum intro, chord-and-bass groove, pad lift, intimate breakdown, deeper second groove, small melodic variation, and smooth DJ outro. Avoid obvious EDM drops; focus on warmth, groove, space, and late-night feeling.">
+          <span>Deep House</span>
+          <small>118-124 BPM / Warm / Soulful</small>
+          <p>Warm chords, subby bass, Rhodes keys, pads, subtle drums, and a restrained late-night club mood.</p>
+        </button>
+        <button class="prompt-button genre-sub-card" type="button" data-genre-prompt="Create a detailed Soulful, Gospel, and Garage House song sketch at 122-126 BPM with full vocal-hook energy, church-influenced piano and organ chords, gospel call-and-response phrases, R and B harmony, swung garage drums, warm bass, live-feeling keys, backing-vocal stabs, and an emotional club arrangement. Include a vocal or chopped-vocal intro, verse-like groove, uplifting piano breakdown, organ-led lift, chorus-style release, and extended club outro. Make it songful, human, and expressive while staying DJ-ready.">
+          <span>Soulful, Gospel, and Garage House</span>
+          <small>122-126 BPM / Vocal / Swung</small>
+          <p>Gospel piano, organ bass, soulful vocals, garage swing, warm bass, and an emotional club release.</p>
+        </button>
+        <button class="prompt-button genre-sub-card" type="button" data-genre-prompt="Create a detailed Disco, Funky, Filter, and French House song sketch at 122-128 BPM with filtered disco or funk loops, bright house drums, live-style bass guitar movement, guitar chops, brass or string stabs, celebratory vocal snippets, sidechain pump, and dramatic filter sweeps. Arrange it with a looped DJ intro, filtered build, full disco-funk groove, breakdown with rising filter automation, compressed French-house style drop, short sample-cut variation, and clean outro. Make it upbeat, glossy, sample-driven, and dancefloor-friendly.">
+          <span>Disco, Funky, Filter, and French House</span>
+          <small>122-128 BPM / Funky / Filtered</small>
+          <p>Disco loops, funk bass, guitar chops, brass or strings, filter sweeps, and glossy French-house compression.</p>
+        </button>
+      </div>
+    </details>
+  `;
+  promptGrid.appendChild(wrapper);
 }
 
 function renderSongFinder() {

@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vibelton Genre Cards</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .genre-page {
+        min-height: 100dvh;
+        padding: 48px 20px;
+      }
+
+      .genre-shell {
+        display: grid;
+        gap: 28px;
+        margin: 0 auto;
+        width: min(960px, 100%);
+      }
+
+      .genre-header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .genre-header h1,
+      .genre-section h2 {
+        margin: 0;
+      }
+
+      .genre-header a {
+        color: var(--accent);
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .genre-section {
+        display: grid;
+        gap: 14px;
+      }
+
+      .genre-parent-card {
+        background: var(--panel-strong);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .genre-parent-card summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 16px;
+      }
+
+      .genre-parent-card summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .genre-parent-card summary span {
+        align-items: center;
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+      }
+
+      .genre-parent-card summary span::after {
+        color: var(--muted);
+        content: "▸";
+      }
+
+      .genre-parent-card[open] summary span::after {
+        color: var(--accent);
+        transform: rotate(90deg);
+      }
+
+      .genre-sub-cards,
+      .direct-genre-grid {
+        display: grid;
+        gap: 8px;
+      }
+
+      .genre-sub-cards {
+        padding: 8px 16px 16px;
+      }
+
+      .direct-genre-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .genre-subline {
+        color: var(--muted);
+        display: block;
+        font-size: 0.88rem;
+        line-height: 1.35;
+      }
+
+      .genre-description {
+        color: var(--muted);
+        margin: 0;
+      }
+
+      .genre-form {
+        display: grid;
+        gap: 10px;
+      }
+
+      .genre-form label {
+        color: var(--muted);
+        font-size: 0.9rem;
+        font-weight: 700;
+      }
+
+      .genre-form textarea {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--ink);
+        min-height: 128px;
+        padding: 14px;
+        resize: vertical;
+      }
+
+      .genre-result {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--soft);
+        margin: 0;
+        max-height: 360px;
+        overflow: auto;
+        padding: 16px;
+        white-space: pre-wrap;
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .genre-parent-card summary span::after,
+        .prompt-button {
+          transition: color 200ms ease, transform 200ms ease, border-color 200ms ease;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .genre-page {
+          padding: 28px 14px;
+        }
+
+        .genre-header {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .direct-genre-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .genre-parent-card summary span {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="genre-page">
+      <section class="genre-shell" aria-labelledby="genre-heading">
+        <header class="genre-header">
+          <div>
+            <p class="eyebrow">Genre Cards</p>
+            <h1>Pick your sound</h1>
+          </div>
+          <a href="/">Back to Vibelton</a>
+        </header>
+
+        <section class="genre-section" aria-labelledby="genre-heading">
+          <h2 id="genre-heading">House sub-genres</h2>
+          <details class="genre-parent-card">
+            <summary>
+              <span>
+                <strong>House</strong>
+                <small class="genre-subline">Classic · Acid · Deep · Garage · Disco</small>
+              </span>
+            </summary>
+            <div class="genre-sub-cards">
+              <button class="prompt-button genre-card" type="button" data-prompt="Create a detailed Classic, Chicago, and Jacking House song sketch at 124-128 BPM with raw TR-707/TR-909-style drum-machine grooves, a jacking bassline, punchy claps on 2 and 4, swung open hats, short vocal shouts, gospel or disco piano stabs, organ bass movement, and a warehouse-friendly arrangement with a DJ intro, stripped groove sections, call-and-response hook moments, a piano or organ breakdown, a tough final jack section, and an outro. Keep it physical, repetitive, simple, and club-functional rather than overly polished.">
+                <span>Classic, Chicago, and Jacking House</span>
+                <small class="genre-subline">124-128 BPM · Raw · Jacking</small>
+                <p class="genre-description">Drum-machine swing, organ or piano stabs, short vocal shouts, and a body-led Chicago warehouse groove.</p>
+              </button>
+              <button class="prompt-button genre-card" type="button" data-prompt="Create a detailed Acid House song sketch at 122-128 BPM with a Roland TB-303-style resonant bassline, squelchy filter automation, repetitive hypnotic riffing, raw machine-funk drums, tight claps, bright hats, psychedelic delay throws, and gradual mixer-style movement. Build a DJ-friendly structure with an acid intro, main 303 groove, filter-rise tension, sparse breakdown, louder acid jack drop, and extended outro. Make the 303 line the central hook and keep the arrangement hypnotic, ravey, and tactile.">
+                <span>Acid House</span>
+                <small class="genre-subline">122-128 BPM · 303 · Hypnotic</small>
+                <p class="genre-description">Squelchy 303 bass, raw drum machines, filter movement, delay, and repetitive warehouse-rave pressure.</p>
+              </button>
+              <button class="prompt-button genre-card" type="button" data-prompt="Create a detailed Deep House song sketch at 118-124 BPM with warm seventh and ninth chords, soulful or jazzy harmony, understated drums, a subby syncopated bassline, soft pads, Rhodes-style keys, subtle percussion, and restrained emotional atmosphere. Arrange it with a soft drum intro, chord-and-bass groove, pad lift, intimate breakdown, deeper second groove, small melodic variation, and smooth DJ outro. Avoid obvious EDM drops; focus on warmth, groove, space, and late-night feeling.">
+                <span>Deep House</span>
+                <small class="genre-subline">118-124 BPM · Warm · Soulful</small>
+                <p class="genre-description">Warm chords, subby bass, Rhodes keys, pads, subtle drums, and a restrained late-night club mood.</p>
+              </button>
+              <button class="prompt-button genre-card" type="button" data-prompt="Create a detailed Soulful, Gospel, and Garage House song sketch at 122-126 BPM with full vocal-hook energy, church-influenced piano and organ chords, gospel call-and-response phrases, R and B harmony, swung garage drums, warm bass, live-feeling keys, backing-vocal stabs, and an emotional club arrangement. Include a vocal or chopped-vocal intro, verse-like groove, uplifting piano breakdown, organ-led lift, chorus-style release, and extended club outro. Make it songful, human, and expressive while staying DJ-ready.">
+                <span>Soulful, Gospel, and Garage House</span>
+                <small class="genre-subline">122-126 BPM · Vocal · Swung</small>
+                <p class="genre-description">Gospel piano, organ bass, soulful vocals, garage swing, warm bass, and an emotional club release.</p>
+              </button>
+              <button class="prompt-button genre-card" type="button" data-prompt="Create a detailed Disco, Funky, Filter, and French House song sketch at 122-128 BPM with filtered disco or funk loops, bright house drums, live-style bass guitar movement, guitar chops, brass or string stabs, celebratory vocal snippets, sidechain pump, and dramatic filter sweeps. Arrange it with a looped DJ intro, filtered build, full disco-funk groove, breakdown with rising filter automation, compressed French-house style drop, short sample-cut variation, and clean outro. Make it upbeat, glossy, sample-driven, and dancefloor-friendly.">
+                <span>Disco, Funky, Filter, and French House</span>
+                <small class="genre-subline">122-128 BPM · Funky · Filtered</small>
+                <p class="genre-description">Disco loops, funk bass, guitar chops, brass or strings, filter sweeps, and glossy French-house compression.</p>
+              </button>
+            </div>
+          </details>
+
+          <div class="direct-genre-grid">
+            <button class="prompt-button genre-card" type="button" data-prompt="Create an expanded Techno song sketch with a hypnotic pulse, dark texture, machine-like drums, and slow-building pressure.">
+              <span>Techno</span>
+              <small class="genre-subline">125–135 BPM · Hypnotic · Machine-like</small>
+              <p class="genre-description">Steady club pressure built from repetition, dark texture, and small changes over time.</p>
+            </button>
+            <button class="prompt-button genre-card" type="button" data-prompt="Create an expanded UK Garage song sketch with skippy two-step drums, soulful chords, vocal-chop energy, and bouncy sub bass.">
+              <span>UK Garage</span>
+              <small class="genre-subline">130–136 BPM · Skippy · Swung</small>
+              <p class="genre-description">Bouncy two-step drums, soulful chords, and sub bass that moves around the groove.</p>
+            </button>
+            <button class="prompt-button genre-card" type="button" data-prompt="Create an expanded Trap song sketch with sparse half-time drums, tuned 808 bass, fast hi-hat rolls, and a dark melodic hook.">
+              <span>Trap</span>
+              <small class="genre-subline">130–150 BPM · Sparse · 808-led</small>
+              <p class="genre-description">Half-time drums, tuned 808 bass, fast hats, and a moody melodic loop.</p>
+            </button>
+          </div>
+        </section>
+
+        <form class="genre-form" id="genreComposer">
+          <label for="genrePrompt">Prompt</label>
+          <textarea id="genrePrompt" rows="5" placeholder="Choose a genre card or write a prompt..."></textarea>
+          <div class="actions">
+            <button class="secondary-button" type="button" id="copyPrompt">Copy</button>
+            <button class="primary-button" type="submit">Send to Ableton</button>
+          </div>
+        </form>
+
+        <pre class="genre-result" id="genreResult" hidden></pre>
+      </section>
+    </main>
+
+    <script>
+      const prompt = document.querySelector("#genrePrompt");
+      const result = document.querySelector("#genreResult");
+
+      document.querySelectorAll(".genre-card").forEach((button) => {
+        button.addEventListener("click", () => {
+          prompt.value = button.dataset.prompt || "";
+          result.hidden = true;
+          prompt.focus();
+        });
+      });
+
+      document.querySelector("#copyPrompt").addEventListener("click", async () => {
+        if (!prompt.value.trim()) return;
+        await navigator.clipboard.writeText(prompt.value);
+      });
+
+      document.querySelector("#genreComposer").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!prompt.value.trim()) return;
+        result.hidden = false;
+        result.textContent = "Sending...";
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: prompt.value }),
+        });
+        const data = await response.json();
+        result.textContent = JSON.stringify(data, null, 2);
+      });
+    </script>
+  </body>
+</html>
