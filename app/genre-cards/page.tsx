@@ -2,7 +2,9 @@
 
 import { FormEvent, useState } from 'react'
 
-type GenreCard = {
+import { HOUSE_SUBGENRE_CARDS, type HouseSubgenreCard } from '../../lib/houseSubgenreCards'
+
+type DirectGenreCard = {
   label: string
   subline: string
   description: string
@@ -10,56 +12,9 @@ type GenreCard = {
   genreId: string
 }
 
-const classicChicagoJackingPrompt =
-  'Create a detailed Classic, Chicago, and Jacking House song sketch at 124-128 BPM with raw TR-707/TR-909-style drum-machine grooves, a jacking bassline, punchy claps on 2 and 4, swung open hats, short vocal shouts, gospel or disco piano stabs, organ bass movement, and a warehouse-friendly arrangement with a DJ intro, stripped groove sections, call-and-response hook moments, a piano or organ breakdown, a tough final jack section, and an outro. Keep it physical, repetitive, simple, and club-functional rather than overly polished.'
-const acidHousePrompt =
-  'Create a detailed Acid House song sketch at 122-128 BPM with a Roland TB-303-style resonant bassline, squelchy filter automation, repetitive hypnotic riffing, raw machine-funk drums, tight claps, bright hats, psychedelic delay throws, and gradual mixer-style movement. Build a DJ-friendly structure with an acid intro, main 303 groove, filter-rise tension, sparse breakdown, louder acid jack drop, and extended outro. Make the 303 line the central hook and keep the arrangement hypnotic, ravey, and tactile.'
-const deepHousePrompt =
-  'Create a detailed Deep House song sketch at 118-124 BPM with warm seventh and ninth chords, soulful or jazzy harmony, understated drums, a subby syncopated bassline, soft pads, Rhodes-style keys, subtle percussion, and restrained emotional atmosphere. Arrange it with a soft drum intro, chord-and-bass groove, pad lift, intimate breakdown, deeper second groove, small melodic variation, and smooth DJ outro. Avoid obvious EDM drops; focus on warmth, groove, space, and late-night feeling.'
-const soulfulGospelGaragePrompt =
-  'Create a detailed Soulful, Gospel, and Garage House song sketch at 122-126 BPM with full vocal-hook energy, church-influenced piano and organ chords, gospel call-and-response phrases, R and B harmony, swung garage drums, warm bass, live-feeling keys, backing-vocal stabs, and an emotional club arrangement. Include a vocal or chopped-vocal intro, verse-like groove, uplifting piano breakdown, organ-led lift, chorus-style release, and extended club outro. Make it songful, human, and expressive while staying DJ-ready.'
-const discoFunkyFilterFrenchPrompt =
-  'Create a detailed Disco, Funky, Filter, and French House song sketch at 122-128 BPM with filtered disco or funk loops, bright house drums, live-style bass guitar movement, guitar chops, brass or string stabs, celebratory vocal snippets, sidechain pump, and dramatic filter sweeps. Arrange it with a looped DJ intro, filtered build, full disco-funk groove, breakdown with rising filter automation, compressed French-house style drop, short sample-cut variation, and clean outro. Make it upbeat, glossy, sample-driven, and dancefloor-friendly.'
+const subGenreCards = HOUSE_SUBGENRE_CARDS
 
-const subGenreCards: GenreCard[] = [
-  {
-    label: 'Classic, Chicago, and Jacking House',
-    subline: '124-128 BPM · Raw · Jacking',
-    description: 'Drum-machine swing, organ or piano stabs, short vocal shouts, and a body-led Chicago warehouse groove.',
-    prompt: classicChicagoJackingPrompt,
-    genreId: 'classicChicagoJackingHouse',
-  },
-  {
-    label: 'Acid House',
-    subline: '122-128 BPM · 303 · Hypnotic',
-    description: 'Squelchy 303 bass, raw drum machines, filter movement, delay, and repetitive warehouse-rave pressure.',
-    prompt: acidHousePrompt,
-    genreId: 'acidHouse',
-  },
-  {
-    label: 'Deep House',
-    subline: '118-124 BPM · Warm · Soulful',
-    description: 'Warm chords, subby bass, Rhodes keys, pads, subtle drums, and a restrained late-night club mood.',
-    prompt: deepHousePrompt,
-    genreId: 'deepHouse',
-  },
-  {
-    label: 'Soulful, Gospel, and Garage House',
-    subline: '122-126 BPM · Vocal · Swung',
-    description: 'Gospel piano, organ bass, soulful vocals, garage swing, warm bass, and an emotional club release.',
-    prompt: soulfulGospelGaragePrompt,
-    genreId: 'soulfulGospelGarageHouse',
-  },
-  {
-    label: 'Disco, Funky, Filter, and French House',
-    subline: '122-128 BPM · Funky · Filtered',
-    description: 'Disco loops, funk bass, guitar chops, brass or strings, filter sweeps, and glossy French-house compression.',
-    prompt: discoFunkyFilterFrenchPrompt,
-    genreId: 'discoFunkyFilterFrenchHouse',
-  },
-]
-
-const directGenreCards: GenreCard[] = [
+const directGenreCards: DirectGenreCard[] = [
   {
     label: 'Techno',
     subline: '125–135 BPM · Hypnotic · Machine-like',
@@ -89,7 +44,7 @@ export default function Home() {
   const [result, setResult] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  function handleCardClick(card: GenreCard) {
+  function handleCardClick(card: HouseSubgenreCard | DirectGenreCard) {
     setUserInput(card.prompt)
     setGenreId(card.genreId)
     setResult('')
@@ -130,7 +85,7 @@ export default function Home() {
             <summary>
               <span>
                 <strong>House</strong>
-                <small>Classic · Acid · Deep · Garage · Disco</small>
+                <small>16 detailed sub-genre prompts</small>
               </span>
             </summary>
             <div className="genre-sub-cards">
