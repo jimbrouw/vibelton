@@ -38,7 +38,7 @@ All values are existing tokens extracted from `web/styles.css`. New components m
 | sm | 8px | Chip gap, tag gap, inner card gap |
 | md | 16px | Card internal padding default, section title margin-bottom |
 | xl | 24px | `.empty-state` padding |
-| 2xl | 28px | Hero padding (matches `.hero`) |
+| 2xl | 32px | Hero padding (matches `.hero`) |
 | 3xl | 32px | — (reserved for layout-level breaks) |
 
 Note: `.library` and `.editor-card` use their own built-in padding (18px). This value is not declared as a new spacing token — those elements use their existing class's built-in padding verbatim and are not overridden by this phase.
@@ -66,6 +66,8 @@ Two weights only: **800** (body, label/subline) and **900** (card title, section
 Note: Body text in the existing stylesheet uses a `font-weight` in the 750–850 range. This spec normalises to 800 — the 50-unit difference is imperceptible and both values fall within the same visual weight band. No CSS change is required; 800 is the declared contract value.
 
 Note: Section heading (`h2`) uses the browser/stylesheet bold default. This spec maps that to weight 900 explicitly, consistent with the card title weight. No CSS change is required unless the executor finds the existing `h2` weight is materially lighter than 900, in which case an explicit `font-weight: 900` may be added.
+
+Note: The 1px size difference between card title (18px) and section heading (19px) is intentional. Both sizes map to existing CSS classes that cannot be changed without affecting unrelated components. Visual distinction between the two roles is reinforced through color contrast — section headings use `--ink` (full text color, `#f3f0e8`) while card sublines use `--muted` (`#b9c2ba`) — and both share the same weight (900), which preserves consistency. This is not an error; it is the correct contract value for both roles.
 
 Genre card label (`Deep House`, `Tech House`): 18px, weight 900, line-height 1.05 — uses `.prompt-button span` pattern verbatim.
 
@@ -100,11 +102,13 @@ Secondary semantic color: `--amber` (`#d9b56f`) — not used in this phase. `--d
 
 New components required for `app/page.tsx`. Each extends existing CSS patterns.
 
+The House parent card is the primary visual anchor; user attention lands here first before scanning to direct-click genre cards below.
+
 ### 1. Genre Cards Section
 
 **Container:** `.genre-cards-section`
 - Placement: Above existing `<main>` content in `app/page.tsx`
-- Layout: `display: grid; gap: 12px;` matching `.prompt-grid` layout rhythm
+- Layout: `display: grid; gap: 8px;` matching `.prompt-grid` layout rhythm
 - Section title: Use `.section-title` pattern with an `h2` at 19px
 
 ### 2. House Parent Card (expandable)
@@ -122,7 +126,7 @@ Inherits from `.vst-settings details` expand/collapse pattern:
 - No generic "House" prompt fires on click — expand reveals sub-genres only (D-02)
 - Visual distinction from direct-click cards: parent card shows the `▸` chevron; direct-click cards show no chevron and behave as `.prompt-button`
 
-Animation (D-04): Sub-genre grid inside `details` animates open with `transition: opacity 200ms ease` from 0 → 1 and a `max-height` slide from 0 → auto equivalent (CSS `display: grid; gap: 12px;` inside the open content).
+Animation (D-04): Sub-genre grid inside `details` animates open with `transition: opacity 200ms ease` from 0 → 1 and a `max-height` slide from 0 → auto equivalent (CSS `display: grid; gap: 8px;` inside the open content).
 
 ### 3. Sub-Genre Cards (Deep House, Tech House)
 
