@@ -37,13 +37,15 @@ All values are existing tokens extracted from `web/styles.css`. New components m
 | xs | 4px | Icon-to-text gap, toggle padding |
 | sm | 8px | Chip gap, tag gap, inner card gap |
 | md | 16px | Card internal padding default, section title margin-bottom |
-| lg | 18px | Library padding, editor-card padding (matches `.library`, `.editor-card`) |
 | xl | 24px | `.empty-state` padding |
 | 2xl | 28px | Hero padding (matches `.hero`) |
 | 3xl | 32px | — (reserved for layout-level breaks) |
 
+Note: `.library` and `.editor-card` use their own built-in padding (18px). This value is not declared as a new spacing token — those elements use their existing class's built-in padding verbatim and are not overridden by this phase.
+
+Note: Sub-genre cards use `.prompt-button` class verbatim. The internal padding comes from the existing `.prompt-button` class's built-in value — this is not a new spacing decision and is not declared as a spacing token.
+
 Exceptions:
-- Sub-genre cards use 15px internal padding to match the existing `.prompt-button` (padding: 15px)
 - Expand/collapse animation clip uses 200ms slide-down — matches D-04 from CONTEXT.md
 
 ---
@@ -54,16 +56,22 @@ All values are taken directly from `web/styles.css`. No new type sizes are intro
 
 | Role | Size | Weight | Line Height | CSS class / token |
 |------|------|--------|-------------|-------------------|
-| Body | 14px | 750–850 (existing `font-weight: 850` pattern) | 1.5 | `dl div`, `.message p` |
+| Body | 14px | 800 | 1.5 | `dl div`, `.message p` |
 | Label / Subline | 12px | 800 | 1.3 | `.eyebrow`, `.prompt-button small`, `.search-field span` |
 | Card title | 18px | 900 | 1.05 | `.prompt-button span` (existing) |
-| Section heading | 19px | default (bold) | 1.1 | `h2` (existing) |
+| Section heading | 19px | 900 | 1.1 | `h2` (existing) |
+
+Two weights only: **800** (body, label/subline) and **900** (card title, section heading).
+
+Note: Body text in the existing stylesheet uses a `font-weight` in the 750–850 range. This spec normalises to 800 — the 50-unit difference is imperceptible and both values fall within the same visual weight band. No CSS change is required; 800 is the declared contract value.
+
+Note: Section heading (`h2`) uses the browser/stylesheet bold default. This spec maps that to weight 900 explicitly, consistent with the card title weight. No CSS change is required unless the executor finds the existing `h2` weight is materially lighter than 900, in which case an explicit `font-weight: 900` may be added.
 
 Genre card label (`Deep House`, `Tech House`): 18px, weight 900, line-height 1.05 — uses `.prompt-button span` pattern verbatim.
 
 Genre card subline (`120–124 BPM · Soulful · Late-night`): 12px, weight 800, `color: var(--muted)` — uses `.prompt-button small` pattern verbatim.
 
-House parent card header: 19px / `h2` style, weight bold, with expand chevron `▸` appended via CSS `::after` (existing `.vst-settings summary h2::after` pattern).
+House parent card header: 19px / `h2` style, weight 900, with expand chevron `▸` appended via CSS `::after` (existing `.vst-settings summary h2::after` pattern).
 
 ---
 
@@ -110,7 +118,7 @@ Inherits from `.vst-settings details` expand/collapse pattern:
 - Background: `var(--panel-strong)`
 - Border: `1px solid var(--line)`
 - Border-radius: `8px`
-- Padding: `15px`
+- Padding: uses `.prompt-button` built-in padding verbatim
 - No generic "House" prompt fires on click — expand reveals sub-genres only (D-02)
 - Visual distinction from direct-click cards: parent card shows the `▸` chevron; direct-click cards show no chevron and behave as `.prompt-button`
 
@@ -131,7 +139,7 @@ Reuses `.prompt-button` styles verbatim:
 Content layout inside the card:
 - `<span>` — card label at 18px / weight 900 / line-height 1.05
 - `<small class="genre-subline">` — subline at 12px / weight 800 / `color: var(--muted)`
-- `<p class="genre-description">` — description body at 14px / weight 400 / `color: var(--muted)` / line-height 1.5
+- `<p class="genre-description">` — description body at 14px / weight 800 / `color: var(--muted)` / line-height 1.5
 
 ### 4. Non-Parent Genre Cards (Techno, UKG, Trap, etc.)
 
@@ -224,11 +232,11 @@ No third-party blocks. All new UI is hand-rolled CSS extending `web/styles.css`.
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [ ] Dimension 1 Copywriting: pending
+- [ ] Dimension 2 Visuals: pending
+- [ ] Dimension 3 Color: pending
+- [ ] Dimension 4 Typography: pending
+- [ ] Dimension 5 Spacing: pending
+- [ ] Dimension 6 Registry Safety: pending
 
 **Approval:** pending
