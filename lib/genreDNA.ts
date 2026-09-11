@@ -67,6 +67,56 @@ export const GENRES: Record<string, GenreDNA> = {
     vibeWords: ['four on the floor', 'pumping', 'club', 'classic', 'driving', 'groove', 'disco'],
   },
 
+  deepHouse: {
+    name: 'Deep House',
+    bpmRange: [120, 124],
+    swingPercent: [60, 65],
+    barGrid: '4/4 16-bar phrases',
+    structure: ['intro 32', 'build 16', 'main 32', 'break 16', 'main 2 32', 'outro 32'],
+    kickPattern: 'Patient four-on-the-floor with a soft ghost on beat 3. No double kicks.',
+    bassPattern: 'Sub-bass focused. Octave drops on bar 3 give forward pull.',
+    hiHatPattern: 'Open hat on upbeats or closed 8th-note drive.',
+    energyArc: 'sustained',
+    rules: [
+      'Keep the groove patient and warm.',
+      'Use long soulful chord tones instead of busy stabs.',
+      'Bass should feel deep and rounded.',
+      'Leave space for late-night atmosphere.',
+      'Let subtle shuffle carry the movement.',
+    ],
+    ruleBreakers: [
+      'add a #11 to the chord voicing',
+      'drop the kick for 4 bars',
+    ],
+    blendsWith: ['house', 'amapiano', 'ukGarage'],
+    vibeWords: ['deep', 'soulful', 'late-night', 'rhodes', 'warm', 'hypnotic', 'jazzy'],
+  },
+
+  techHouse: {
+    name: 'Tech House',
+    bpmRange: [127, 132],
+    swingPercent: [50, 52],
+    barGrid: '4/4 16-bar phrases',
+    structure: ['intro 16', 'build 32', 'peak 32', 'reduction 16', 'peak 2 32', 'outro 16'],
+    kickPattern: 'Relentless four-on-the-floor at full velocity. No variation, no mercy.',
+    bassPattern: 'Rolling 16th-note riff. Tight and industrial. Bass is texture as much as groove.',
+    hiHatPattern: '16th-note closed hats, high velocity, or alternating open/closed 16ths.',
+    energyArc: 'meditative',
+    rules: [
+      'Keep the kick relentless and machine-like.',
+      'Use tight short bass notes with minimal melodic movement.',
+      'Let pressure build through repetition.',
+      'Hats should feel urgent and close to the grid.',
+      'Chords are stabs or absent, not lush pads.',
+    ],
+    ruleBreakers: [
+      'drop all chords, keep only kick and bass for 8 bars',
+      'add a pitched LFO stab repeating every beat',
+    ],
+    blendsWith: ['techno', 'house', 'ukGarage'],
+    vibeWords: ['dark', 'industrial', 'techno-edge', 'rolling', 'minimal', 'peak-hour', 'pressure'],
+  },
+
   techno: {
     name: 'Techno',
     bpmRange: [125, 135],

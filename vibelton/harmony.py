@@ -295,6 +295,7 @@ def weighted_progression(style: str, mode: str, colour: str, bars: int, seed: in
 # Genres where the main/drop section traditionally reduces to 1-2 chords.
 _EDM_STYLES = {
     "house", "uk garage", "techno", "trance",
+    "deep_house", "tech_house",
     "drum n bass", "jungle", "dubstep", "grime",
     "trap",
 }

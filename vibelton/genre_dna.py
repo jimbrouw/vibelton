@@ -8,6 +8,7 @@ Lead phrase entry:  (beat_pos, scale_degree_idx, duration, velocity)
 """
 
 from __future__ import annotations
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
@@ -106,6 +107,15 @@ GROOVE_TEMPLATES: dict[str, GrooveProfile] = {
         push_pull_per_subdivision=(0.0, 0.0, 0.0, 0.0),
     ),
 }
+GROOVE_TEMPLATES["laid_back"] = GrooveProfile.from_swing(0.62, "laid_back")
+GROOVE_TEMPLATES["push"] = GrooveProfile(
+    name="push",
+    position_jitter_ms=3.0,
+    velocity_jitter=4,
+    length_jitter=0.007,
+    weak_beat_curve=(1.0, 0.88, 0.96, 0.84),
+    push_pull_per_subdivision=(-0.005, 0.0, -0.003, 0.0),
+)
 
 
 @dataclass(frozen=True)
@@ -135,6 +145,7 @@ class GenreDNA:
     # Lead
     lead_octave: int
     lead_phrases: tuple[LeadPhrase, ...]
+    parent: str | None = None
 
 
 # ── House ────────────────────────────────────────────────────────────
@@ -143,10 +154,13 @@ HOUSE = GenreDNA(
     bpm_default=124, bpm_range=(120, 128), groove_profile=GROOVE_TEMPLATES["straight"],
 
     kick_patterns=(
-        [0.0, 1.0, 2.0, 3.0],
+        [0.0, 1.0, 2.0, 3.0],                          # four-on-the-floor
+        [0.0, 0.75, 1.0, 2.0, 3.0],                    # with offbeat ghost kick
+        [0.0, 1.0, 2.0, 2.75, 3.0],                    # late ghost before 4
     ),
     snare_patterns=(
-        [1.0, 3.0],
+        [1.0, 3.0],                                     # classic 2+4
+        [1.0, 2.5, 3.0],                                # with 16th anticipation
     ),
     hat_patterns=(
         [0.5, 1.5, 2.5, 3.5],                          # offbeat 8ths
@@ -189,6 +203,94 @@ HOUSE = GenreDNA(
     ),
 )
 
+# ── Deep House ───────────────────────────────────────────────────────
+DEEP_HOUSE = GenreDNA(
+    name="deep_house",
+    bpm_default=122, bpm_range=(120, 124), groove_profile=GROOVE_TEMPLATES["laid_back"],
+
+    kick_patterns=(
+        [0.0, 1.0, 2.0, 3.0],                          # patient four-on-the-floor
+        [0.0, 1.0, 2.0, 2.75, 3.0],                    # with soft ghost before 4
+        [0.0, 1.0, 1.75, 2.0, 3.0],                    # ghost before 3
+    ),
+    snare_patterns=(
+        [1.0, 3.0],                                     # classic
+        [1.0, 2.75, 3.0],                               # laid-back ghost before 3
+    ),
+    hat_patterns=(
+        [i * 0.5 for i in range(8)],
+        [0.5, 1.5, 2.5, 3.5],
+    ),
+    hat_style="8ths",
+
+    bass_octave=1,
+    bass_patterns=(
+        [(0.0, 0, 1.2, 98), (1.5, -12, 0.4, 82), (2.0, 0, 0.8, 94), (3.0, -12, 0.7, 88)],
+        [(0.0, 0, 0.7, 96), (1.0, 7, 0.6, 84), (2.0, -12, 0.8, 92), (3.5, 0, 0.35, 82)],
+    ),
+
+    chord_octave=4, chord_style="long_tone",
+    chord_rhythms=(
+        [0.0],                  # single sustained pad
+        [0.0, 2.0],             # two-bar feel, gentle shift
+    ),
+    chord_duration=4.0,
+    chord_extensions=(),
+
+    lead_octave=4,
+    lead_phrases=(
+        [(0.0, 2, 0.8, 74), (2.0, 3, 0.7, 72), (3.0, 4, 0.9, 76)],
+        [(0.5, 4, 0.7, 72), (1.5, 5, 0.6, 70), (3.0, 3, 0.8, 74)],
+    ),
+    parent="house",
+)
+
+# ── Tech House ───────────────────────────────────────────────────────
+TECH_HOUSE = GenreDNA(
+    name="tech_house",
+    bpm_default=129, bpm_range=(127, 132), groove_profile=GROOVE_TEMPLATES["push"],
+
+    kick_patterns=(
+        [0.0, 1.0, 2.0, 3.0],                          # relentless four-on-the-floor
+        [0.0, 0.75, 1.0, 2.0, 2.75, 3.0],              # with industrial ghost hits
+        [0.0, 1.0, 2.0, 2.5, 3.0],                     # rolling into 3
+    ),
+    snare_patterns=(
+        [1.0, 2.5, 3.0],                                # syncopated clap
+        [1.0, 3.0],                                     # clean backbeat
+    ),
+    hat_patterns=(
+        [i * 0.25 for i in range(16)],                  # driving 16ths
+        [0.25, 0.75, 1.25, 1.75, 2.25, 2.75, 3.25, 3.75],  # offbeat 16ths
+    ),
+    hat_style="16ths",
+
+    bass_octave=1,
+    bass_patterns=(
+        [(0.0, 0, 0.18, 112), (0.25, 0, 0.16, 96), (0.5, 3, 0.18, 104), (0.75, 0, 0.16, 96),
+         (1.0, 0, 0.18, 112), (1.25, 3, 0.16, 98), (1.5, 0, 0.18, 106), (1.75, 0, 0.16, 96),
+         (2.0, 0, 0.18, 112), (2.25, 0, 0.16, 96), (2.5, 3, 0.18, 104), (2.75, 0, 0.16, 96),
+         (3.0, 0, 0.18, 112), (3.25, 3, 0.16, 98), (3.5, 0, 0.18, 106), (3.75, 0, 0.16, 96)],
+        [(0.0, 0, 0.2, 110), (0.5, 0, 0.2, 100), (1.0, 3, 0.2, 108), (1.5, 0, 0.2, 100),
+         (2.0, 0, 0.2, 110), (2.5, 3, 0.2, 104), (3.0, 0, 0.2, 110), (3.5, 6, 0.2, 100)],
+    ),
+
+    chord_octave=4, chord_style="stab",
+    chord_rhythms=(
+        [0.0, 1.0, 2.0, 3.0],          # on every beat
+        [0.0, 0.75, 2.0, 2.75],        # syncopated stabs
+    ),
+    chord_duration=0.5,
+    chord_extensions=(),
+
+    lead_octave=4,
+    lead_phrases=(
+        [(0.0, 0, 0.18, 82), (0.5, 2, 0.16, 78), (1.0, 0, 0.18, 82), (2.0, 2, 0.18, 80)],
+        [(0.0, 0, 0.18, 84), (0.75, 2, 0.16, 78), (1.5, 0, 0.18, 82), (3.0, 2, 0.18, 80)],
+    ),
+    parent="house",
+)
+
 # ── UK Garage ────────────────────────────────────────────────────────
 UK_GARAGE = GenreDNA(
     name="uk garage",
@@ -204,7 +306,9 @@ UK_GARAGE = GenreDNA(
         [1.0, 2.75, 3.0],               # ghost snare
     ),
     hat_patterns=(
-        [i * 0.25 for i in range(16)],  # fast 16ths
+        [i * 0.25 for i in range(16)],                  # fast 16ths
+        [0.25, 0.5, 0.75, 1.25, 1.75, 2.25, 2.5, 2.75, 3.25, 3.75],  # swung, accented
+        [0.0, 0.25, 0.75, 1.5, 1.75, 2.5, 2.75, 3.25, 3.75],          # shuffled gaps
     ),
     hat_style="16ths",
 
@@ -257,7 +361,9 @@ DNB = GenreDNA(
         [1.0, 2.75, 3.0, 3.5],          # with ghost notes
     ),
     hat_patterns=(
-        [i * 0.25 for i in range(16)],  # fast 16ths (ride)
+        [i * 0.25 for i in range(16)],                          # fast 16ths (ride)
+        [0.0, 0.25, 0.5, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 3.25, 3.5],  # syncopated amen feel
+        [0.0, 0.5, 0.75, 1.0, 1.5, 2.0, 2.25, 2.5, 3.0, 3.5, 3.75],         # swing-influenced
     ),
     hat_style="16ths",
 
@@ -278,6 +384,7 @@ DNB = GenreDNA(
     chord_octave=4, chord_style="pad",
     chord_rhythms=(
         [0.0],                           # sustained pad
+        [0.0, 2.0],                      # two-bar tension shift
     ),
     chord_duration=3.75,
     chord_extensions=(10,),              # minor 7ths
@@ -306,7 +413,9 @@ JUNGLE = GenreDNA(
         [0.5, 1.0, 2.5, 3.0, 3.25, 3.5],
     ),
     hat_patterns=(
-        [i * 0.25 for i in range(16)],
+        [i * 0.25 for i in range(16)],                                                   # straight 16ths
+        [i * 0.25 for i in range(16) if i % 4 != 3],                                    # drop every 4th
+        [0.0, 0.25, 0.5, 1.0, 1.25, 1.75, 2.0, 2.25, 2.5, 3.0, 3.25, 3.5, 3.75],     # syncopated amen feel
     ),
     hat_style="16ths",
 
@@ -315,10 +424,16 @@ JUNGLE = GenreDNA(
         [(0.0, 0, 1.5, 100), (2.0, 7, 1.5, 96)],
         [(0.0, 0, 0.8, 100), (1.0, 0, 0.4, 88),
          (2.0, 7, 0.8, 96), (3.0, 5, 0.4, 90)],
+        [(0.0, 0, 0.5, 100), (0.5, 7, 0.4, 88),
+         (1.5, 0, 0.6, 96), (2.5, 5, 0.5, 90), (3.5, 0, 0.4, 84)],
     ),
 
     chord_octave=4, chord_style="stab",
-    chord_rhythms=([0.0, 2.0],),
+    chord_rhythms=(
+        [0.0, 2.0],
+        [0.5, 2.5],
+        [0.0, 1.5, 3.0],
+    ),
     chord_duration=1.5,
     chord_extensions=(10,),
 
@@ -326,6 +441,10 @@ JUNGLE = GenreDNA(
     lead_phrases=(
         [(0.0, 4, 0.6, 82), (1.0, 3, 0.4, 78), (2.0, 4, 0.5, 84),
          (3.0, 6, 0.4, 80)],
+        [(0.0, 0, 0.4, 80), (0.5, 2, 0.3, 76), (1.0, 4, 0.6, 84),
+         (2.0, 4, 0.5, 82), (3.0, 3, 0.4, 78), (3.5, 2, 0.3, 74)],
+        [(0.0, 2, 0.8, 80), (1.5, 4, 0.6, 84), (2.5, 3, 0.4, 78),
+         (3.25, 2, 0.3, 76)],
     ),
 )
 
@@ -335,7 +454,9 @@ TECHNO = GenreDNA(
     bpm_default=132, bpm_range=(125, 140), groove_profile=GROOVE_TEMPLATES["straight"],
 
     kick_patterns=(
-        [0.0, 1.0, 2.0, 3.0],
+        [0.0, 1.0, 2.0, 3.0],                          # four-on-the-floor
+        [0.0, 0.75, 1.0, 2.0, 2.75, 3.0],              # with industrial pre-kick hits
+        [0.0, 1.0, 2.0, 3.0, 3.75],                    # with late pickup
     ),
     snare_patterns=(
         [1.0, 3.0],
@@ -367,7 +488,10 @@ TECHNO = GenreDNA(
     ),
 
     chord_octave=4, chord_style="pad",
-    chord_rhythms=([0.0],),
+    chord_rhythms=(
+        [0.0],              # full-bar sustained
+        [0.0, 2.0],         # half-bar industrial stabs
+    ),
     chord_duration=3.5,
     chord_extensions=(),
 
@@ -387,9 +511,20 @@ TRANCE = GenreDNA(
     name="trance",
     bpm_default=138, bpm_range=(136, 142), groove_profile=GROOVE_TEMPLATES["straight"],
 
-    kick_patterns=([0.0, 1.0, 2.0, 3.0],),
-    snare_patterns=([1.0, 3.0],),
-    hat_patterns=([0.5, 1.5, 2.5, 3.5],),
+    kick_patterns=(
+        [0.0, 1.0, 2.0, 3.0],                      # four-on-the-floor
+        [0.0, 0.75, 1.0, 2.0, 2.75, 3.0],           # with offbeat accents
+        [0.0, 1.0, 1.75, 2.0, 3.0, 3.75],           # pre-drop build
+    ),
+    snare_patterns=(
+        [1.0, 3.0],                                 # clap on 2+4
+        [1.0, 2.5, 3.0],                            # with anticipation
+    ),
+    hat_patterns=(
+        [0.5, 1.5, 2.5, 3.5],                      # offbeat 8ths
+        [i * 0.25 for i in range(16)],              # 16ths for build sections
+        [0.25, 0.75, 1.25, 1.75, 2.25, 2.75, 3.25, 3.75],  # offbeat 16ths
+    ),
     hat_style="8ths",
 
     bass_octave=1,
@@ -398,10 +533,21 @@ TRANCE = GenreDNA(
          (1.0, 0, 0.4, 100), (1.5, 0, 0.35, 88),
          (2.0, 0, 0.4, 100), (2.5, 7, 0.35, 88),
          (3.0, 0, 0.4, 100), (3.5, 0, 0.35, 88)],
+        # Sidechain pumping root
+        [(0.0, 0, 0.85, 104), (1.0, 0, 0.85, 96),
+         (2.0, 0, 0.85, 104), (3.0, 7, 0.85, 96)],
+        # Moving trance bass
+        [(0.0, 0, 0.4, 100), (0.5, 0, 0.35, 88),
+         (1.0, 7, 0.4, 96), (1.5, 5, 0.35, 84),
+         (2.0, 0, 0.4, 100), (2.5, 0, 0.35, 88),
+         (3.0, 5, 0.4, 96), (3.5, 7, 0.35, 84)],
     ),
 
     chord_octave=4, chord_style="pad",
-    chord_rhythms=([0.0],),
+    chord_rhythms=(
+        [0.0],            # sustained pad
+        [0.0, 2.0],       # half-bar stabs
+    ),
     chord_duration=3.75,
     chord_extensions=(10,),
 
@@ -415,6 +561,13 @@ TRANCE = GenreDNA(
          (2.5, 9, 0.2, 86), (2.75, 7, 0.2, 78),
          (3.0, 4, 0.2, 82), (3.25, 2, 0.2, 76),
          (3.5, 0, 0.4, 84)],
+        # Soaring lead melody
+        [(0.0, 4, 0.6, 88), (0.75, 7, 0.4, 84),
+         (1.5, 9, 0.6, 90), (2.25, 7, 0.4, 86),
+         (3.0, 4, 0.9, 92)],
+        # Breakdown pad melody
+        [(0.0, 0, 1.5, 72), (2.0, 4, 1.0, 68),
+         (3.0, 7, 0.8, 74)],
     ),
 )
 
@@ -454,7 +607,10 @@ TRAP = GenreDNA(
     ),
 
     chord_octave=4, chord_style="pad",
-    chord_rhythms=([0.0],),
+    chord_rhythms=(
+        [0.0],              # single long sustain
+        [0.0, 2.0],         # half-bar shift
+    ),
     chord_duration=3.5,
     chord_extensions=(10,),
 
@@ -479,9 +635,13 @@ HIP_HOP = GenreDNA(
     ),
     snare_patterns=(
         [1.0, 3.0],                      # classic backbeat
+        [2.0],                           # half-time (lo-fi / beat tape)
+        [1.0, 2.0, 3.0, 3.5],           # swung fills
     ),
     hat_patterns=(
-        [i * 0.5 for i in range(8)],    # 8th notes
+        [i * 0.5 for i in range(8)],                             # 8th notes
+        [0.0, 0.25, 0.5, 1.0, 1.5, 2.0, 2.25, 2.5, 3.0, 3.5],  # swung 16ths (MPC feel)
+        [i * (1/3) for i in range(12)],                          # triplet groove
     ),
     hat_style="8ths",
 
@@ -490,10 +650,15 @@ HIP_HOP = GenreDNA(
         [(0.0, 0, 0.8, 100), (1.0, 0, 0.4, 88),
          (2.0, 7, 0.8, 96), (3.0, 5, 0.4, 88)],
         [(0.0, 0, 1.5, 100), (2.0, 0, 1.5, 96)],
+        [(0.0, 0, 0.6, 100), (0.75, 7, 0.5, 88),
+         (2.0, 0, 0.6, 96), (3.0, 5, 0.4, 84)],
     ),
 
     chord_octave=4, chord_style="pad",
-    chord_rhythms=([0.0],),
+    chord_rhythms=(
+        [0.0],             # whole bar pad
+        [0.0, 2.0],        # half-bar chops
+    ),
     chord_duration=3.5,
     chord_extensions=(10, 14),
 
@@ -501,6 +666,11 @@ HIP_HOP = GenreDNA(
     lead_phrases=(
         [(0.0, 4, 0.6, 78), (1.5, 3, 0.5, 74),
          (2.5, 2, 0.5, 76), (3.5, 0, 0.5, 80)],
+        # Soulful Rhodes-style hook
+        [(0.0, 2, 0.5, 80), (0.75, 4, 0.4, 76),
+         (1.5, 5, 0.6, 82), (2.5, 4, 0.4, 78), (3.25, 2, 0.5, 76)],
+        # Sparse, moody
+        [(0.0, 0, 1.0, 74), (2.0, 3, 0.8, 70), (3.25, 2, 0.6, 72)],
     ),
 )
 
@@ -514,10 +684,12 @@ REGGAETON = GenreDNA(
         [0.0, 0.75, 1.5, 2.0, 2.75, 3.5], # 3-3-2 linear clave
     ),
     snare_patterns=(
-        [0.75, 1.75, 2.75, 3.75],       # dembow snare
+        [0.75, 1.75, 2.75, 3.75],       # dembow snare on offbeats
+        [1.0, 1.75, 3.0, 3.75],         # mixed back-beat and dembow feel
     ),
     hat_patterns=(
-        [i * 0.25 for i in range(16)],
+        [i * 0.25 for i in range(16)],                          # constant 16ths
+        [0.25, 0.5, 0.75, 1.25, 1.75, 2.25, 2.5, 2.75, 3.25, 3.75],  # syncopated hi-hat
     ),
     hat_style="16ths",
 
@@ -525,10 +697,18 @@ REGGAETON = GenreDNA(
     bass_patterns=(
         [(0.0, 0, 0.6, 100), (1.5, 7, 0.4, 92),
          (2.5, 0, 0.6, 100)],
+        # Melodic dembow bass
+        [(0.0, 0, 0.5, 100), (0.75, 5, 0.4, 92),
+         (1.5, 7, 0.4, 96), (2.5, 0, 0.5, 100), (3.25, 5, 0.3, 88)],
+        # Sub-heavy
+        [(0.0, 0, 1.4, 108), (1.5, 0, 1.0, 96), (2.75, 7, 0.5, 92)],
     ),
 
     chord_octave=4, chord_style="stab",
-    chord_rhythms=([0.0, 1.5, 2.5],),
+    chord_rhythms=(
+        [0.0, 1.5, 2.5],                # dembow-following
+        [0.0, 0.75, 1.5, 2.5],          # busier
+    ),
     chord_duration=0.4,
     chord_extensions=(),
 
@@ -536,6 +716,12 @@ REGGAETON = GenreDNA(
     lead_phrases=(
         [(0.0, 4, 0.4, 80), (0.75, 3, 0.3, 76),
          (1.5, 4, 0.5, 82), (2.5, 2, 0.4, 78), (3.25, 4, 0.4, 80)],
+        # Melodic hook
+        [(0.0, 0, 0.5, 82), (0.5, 2, 0.4, 78),
+         (1.0, 4, 0.4, 84), (1.75, 5, 0.3, 80),
+         (2.5, 4, 0.4, 82), (3.5, 2, 0.4, 76)],
+        # Sparse, atmospheric
+        [(0.0, 4, 0.8, 76), (2.0, 5, 0.7, 72), (3.25, 4, 0.5, 74)],
     ),
 )
 
@@ -544,24 +730,49 @@ DOWNTEMPO = GenreDNA(
     name="downtempo",
     bpm_default=92, bpm_range=(80, 100), groove_profile=GROOVE_TEMPLATES["mpc_58"],
 
-    kick_patterns=([0.0, 2.0],),
-    snare_patterns=([1.0, 3.0],),
-    hat_patterns=([i * 0.5 for i in range(8)],),
+    kick_patterns=(
+        [0.0, 2.0],                       # minimal
+        [0.0, 1.75, 2.5],                 # syncopated
+        [0.0, 0.75, 2.0, 3.25],           # trip-hop bounce
+    ),
+    snare_patterns=(
+        [1.0, 3.0],                        # backbeat
+        [2.0, 3.5],                        # off-center
+    ),
+    hat_patterns=(
+        [i * 0.5 for i in range(8)],                              # 8th notes
+        [0.0, 0.25, 0.75, 1.5, 1.75, 2.25, 3.0, 3.5],           # swung 16ths
+        [i * (1/3) for i in range(12)],                           # triplet (Portishead)
+    ),
     hat_style="8ths",
 
     bass_octave=2,
     bass_patterns=(
         [(0.0, 0, 1.0, 90), (2.0, 7, 1.0, 86)],
+        # Chromatic movement
+        [(0.0, 0, 0.8, 92), (1.0, 5, 0.6, 84),
+         (2.0, 7, 0.8, 88), (3.25, 0, 0.5, 80)],
+        # Melodic trip-hop line
+        [(0.0, 0, 0.6, 90), (0.75, 2, 0.5, 80),
+         (1.5, 0, 0.6, 88), (2.5, 7, 0.8, 84), (3.5, 5, 0.4, 78)],
     ),
 
     chord_octave=4, chord_style="pad",
-    chord_rhythms=([0.0],),
+    chord_rhythms=(
+        [0.0],             # full-bar pad
+        [0.0, 2.5],        # syncopated stabs
+    ),
     chord_duration=3.75,
     chord_extensions=(10, 14),
 
     lead_octave=4,
     lead_phrases=(
         [(0.0, 4, 0.8, 72), (2.0, 3, 0.6, 68), (3.0, 2, 0.8, 70)],
+        # Haunting sparse (Massive Attack)
+        [(0.0, 0, 1.2, 68), (1.5, 5, 0.8, 64), (3.0, 4, 1.0, 70)],
+        # Portishead-style riff
+        [(0.0, 2, 0.5, 74), (0.75, 3, 0.4, 70),
+         (1.5, 2, 0.5, 72), (2.5, 0, 0.6, 76), (3.25, 2, 0.4, 68)],
     ),
 )
 
@@ -570,24 +781,42 @@ AMBIENT = GenreDNA(
     name="ambient",
     bpm_default=78, bpm_range=(60, 90), groove_profile=GROOVE_TEMPLATES["straight"],
 
-    kick_patterns=([],),                 # no kick
-    snare_patterns=([],),                # no snare
-    hat_patterns=([],),
+    kick_patterns=(
+        [],                               # no kick (pure ambient)
+        [0.0],                            # rare soft downbeat
+    ),
+    snare_patterns=(
+        [],                               # no snare
+        [2.0],                            # ultra-sparse
+    ),
+    hat_patterns=(
+        [],                               # silence
+        [0.0, 2.0],                       # minimal markers
+    ),
     hat_style="8ths",
 
     bass_octave=2,
     bass_patterns=(
-        [(0.0, 0, 3.5, 70)],            # one long drone note
+        [(0.0, 0, 3.5, 70)],             # long drone
+        [(0.0, 0, 3.5, 60), (3.5, 7, 0.4, 50)],    # drone with subtle movement
+        [(0.0, 0, 1.5, 65), (2.0, 5, 1.5, 60)],    # slow two-note line
     ),
 
     chord_octave=4, chord_style="pad",
-    chord_rhythms=([0.0],),
+    chord_rhythms=(
+        [0.0],             # single sustained pad
+        [0.0, 2.0],        # slow shift
+    ),
     chord_duration=3.75,
     chord_extensions=(10, 14),
 
     lead_octave=4,
     lead_phrases=(
         [(0.0, 4, 1.5, 60), (2.0, 7, 1.5, 56)],
+        # Floaty high notes
+        [(0.0, 7, 2.0, 56), (2.5, 9, 1.5, 52)],
+        # Brian Eno-style sparse tones
+        [(0.5, 4, 1.8, 52), (3.0, 7, 1.5, 48)],
     ),
 )
 
@@ -596,19 +825,41 @@ POP = GenreDNA(
     name="pop",
     bpm_default=104, bpm_range=(96, 120), groove_profile=GROOVE_TEMPLATES["straight"],
 
-    kick_patterns=([0.0, 1.0, 2.0, 3.0],),
-    snare_patterns=([1.0, 3.0],),
-    hat_patterns=([i * 0.5 for i in range(8)],),
+    kick_patterns=(
+        [0.0, 1.0, 2.0, 3.0],            # four-on-the-floor
+        [0.0, 2.0],                       # simple verse
+        [0.0, 0.75, 2.0, 3.0],           # syncopated chorus
+    ),
+    snare_patterns=(
+        [1.0, 3.0],                       # classic backbeat
+        [1.0, 2.5, 3.0],                  # with 16th anticipation
+    ),
+    hat_patterns=(
+        [i * 0.5 for i in range(8)],                              # 8th notes
+        [i * 0.25 for i in range(16)],                            # 16ths for chorus
+        [0.0, 0.5, 0.75, 1.5, 2.0, 2.5, 2.75, 3.5],             # mixed feel
+    ),
     hat_style="8ths",
 
     bass_octave=2,
     bass_patterns=(
         [(0.0, 0, 0.7, 96), (1.0, 0, 0.7, 90),
          (2.0, 7, 0.7, 96), (3.0, 0, 0.7, 90)],
+        # Active, melodic
+        [(0.0, 0, 0.5, 96), (0.5, 0, 0.4, 84),
+         (1.0, 7, 0.5, 92), (2.0, 0, 0.5, 94),
+         (2.5, 5, 0.4, 86), (3.0, 7, 0.6, 90)],
+        # Driving 8ths
+        [(i * 0.5, 0 if i % 4 < 3 else 7, 0.4, 96 if i % 2 == 0 else 86)
+         for i in range(8)],
     ),
 
     chord_octave=3, chord_style="stab",
-    chord_rhythms=([0.0, 1.0, 2.0, 3.0],),
+    chord_rhythms=(
+        [0.0, 1.0, 2.0, 3.0],            # every beat
+        [0.0, 2.0],                       # sparse
+        [0.5, 1.5, 2.5, 3.5],            # offbeat (EDM pop)
+    ),
     chord_duration=0.8,
     chord_extensions=(),
 
@@ -616,6 +867,11 @@ POP = GenreDNA(
     lead_phrases=(
         [(0.0, 0, 0.5, 82), (0.5, 2, 0.4, 78), (1.0, 4, 0.5, 84),
          (2.0, 3, 0.4, 80), (2.5, 2, 0.4, 78), (3.0, 0, 0.6, 82)],
+        # Catchy chorus hook
+        [(0.0, 4, 0.4, 86), (0.5, 5, 0.3, 82),
+         (1.0, 4, 0.5, 88), (2.0, 2, 0.4, 84), (3.0, 0, 0.8, 86)],
+        # Sparse verse melody
+        [(0.0, 2, 0.8, 76), (1.5, 4, 0.6, 78), (3.0, 2, 0.8, 76)],
     ),
 )
 
@@ -650,7 +906,10 @@ AFROBEATS = GenreDNA(
     ),
 
     chord_octave=4, chord_style="stab",
-    chord_rhythms=([0.0, 0.75, 1.5, 2.25, 3.0],),
+    chord_rhythms=(
+        [0.0, 0.75, 1.5, 2.25, 3.0],     # original syncopated
+        [0.0, 1.0, 2.5, 3.25],            # sparser variation
+    ),
     chord_duration=0.3,
     chord_extensions=(10, 14),
 
@@ -659,6 +918,13 @@ AFROBEATS = GenreDNA(
         # Pentatonic, repeating
         [(0.0, 4, 0.4, 80), (0.5, 2, 0.3, 76), (1.0, 0, 0.5, 84),
          (1.5, 2, 0.3, 78), (2.0, 4, 0.5, 80)],
+        # Afro high-life riff
+        [(0.0, 0, 0.3, 82), (0.75, 2, 0.3, 78),
+         (1.5, 4, 0.4, 84), (2.0, 2, 0.3, 80),
+         (2.75, 0, 0.4, 82), (3.5, 4, 0.3, 76)],
+        # Melodic top-line
+        [(0.0, 4, 0.5, 80), (1.0, 5, 0.4, 76),
+         (2.0, 4, 0.5, 82), (3.0, 2, 0.6, 78)],
     ),
 )
 
@@ -668,14 +934,17 @@ AMAPIANO = GenreDNA(
     bpm_default=113, bpm_range=(110, 115), groove_profile=GROOVE_TEMPLATES["ukg_shuffle"],
 
     kick_patterns=(
-        [0.0, 1.0, 2.0, 3.0],
+        [0.0, 1.0, 2.0, 3.0],             # four-on-the-floor
+        [0.0, 0.75, 2.0, 2.75],           # syncopated kwaito-style
+        [0.0, 1.5, 2.0, 3.5],             # off-beat variation
     ),
     snare_patterns=(
-        [1.5, 3.5],                     # late snare
-        [1.0, 1.5, 3.0, 3.5],           # shaker-heavy feel
+        [1.5, 3.5],                        # late snare
+        [1.0, 1.5, 3.0, 3.5],             # shaker-heavy feel
     ),
     hat_patterns=(
-        [i * 0.25 for i in range(16)],  # constant 16th shakers
+        [i * 0.25 for i in range(16)],     # constant 16th shakers
+        [0.25, 0.5, 0.75, 1.25, 1.75, 2.25, 2.5, 2.75, 3.25, 3.75],  # accented off-beats
     ),
     hat_style="16ths",
 
@@ -690,7 +959,10 @@ AMAPIANO = GenreDNA(
     ),
 
     chord_octave=3, chord_style="pad",
-    chord_rhythms=([0.0],),
+    chord_rhythms=(
+        [0.0],                             # full-bar pad
+        [0.0, 1.5, 3.0],                   # log-drum influenced stabs
+    ),
     chord_duration=3.75,
     chord_extensions=(10, 14),
 
@@ -699,6 +971,13 @@ AMAPIANO = GenreDNA(
         # Percussive synth hook
         [(0.0, 0, 0.2, 84), (0.5, 0, 0.2, 78), (1.0, 4, 0.3, 86),
          (1.5, 0, 0.2, 80), (2.5, 2, 0.2, 82), (3.0, 0, 0.3, 76)],
+        # Melodic log-drum hook
+        [(0.0, 4, 0.3, 84), (0.5, 2, 0.2, 78),
+         (1.0, 0, 0.3, 80), (1.75, 4, 0.3, 84),
+         (2.5, 5, 0.25, 80), (3.0, 4, 0.3, 76)],
+        # Piano-house influenced
+        [(0.0, 0, 0.4, 82), (1.5, 2, 0.3, 78),
+         (2.0, 4, 0.4, 84), (3.0, 5, 0.3, 80), (3.5, 4, 0.2, 76)],
     ),
 )
 
@@ -707,6 +986,8 @@ AMAPIANO = GenreDNA(
 
 GENRE_REGISTRY: dict[str, GenreDNA] = {
     "house": HOUSE,
+    "deep_house": DEEP_HOUSE,
+    "tech_house": TECH_HOUSE,
     "uk garage": UK_GARAGE,
     "drum n bass": DNB,
     "dnb": DNB,
@@ -733,6 +1014,26 @@ GENRE_REGISTRY: dict[str, GenreDNA] = {
 }
 
 DEFAULT_DNA = HOUSE
+
+
+def _resolve_genre(key: str, registry: dict[str, GenreDNA]) -> GenreDNA:
+    child = registry[key]
+    if child.parent is None or child.parent not in registry:
+        return child
+    if child.parent == key:
+        raise ValueError(f"Genre {key!r} cannot parent itself")
+    parent = registry[child.parent]
+    return dataclasses.replace(
+        child,
+        bass_patterns=parent.bass_patterns + child.bass_patterns,
+        lead_phrases=parent.lead_phrases + child.lead_phrases,
+    )
+
+
+_RESOLVED_GENRE_REGISTRY: dict[str, GenreDNA] = {
+    key: _resolve_genre(key, GENRE_REGISTRY) for key in GENRE_REGISTRY
+}
+RESOLVED_GENRE_REGISTRY = _RESOLVED_GENRE_REGISTRY
 
 
 CURATED_GENRES: dict[str, CuratedGenreDNA] = {
@@ -785,6 +1086,54 @@ CURATED_GENRES: dict[str, CuratedGenreDNA] = {
         ),
         blends_with=("uk garage", "techno", "afrobeats", "amapiano"),
         vibe_words=("four on the floor", "pumping", "club", "classic", "driving", "groove", "disco"),
+    ),
+    "deep_house": CuratedGenreDNA(
+        name="Deep House",
+        bpm_range=(120, 124),
+        swing_percent=(60, 65),
+        bar_grid="4/4 16-bar phrases",
+        structure=("intro 32", "build 16", "main 32", "break 16", "main 2 32", "outro 32"),
+        kick_pattern="Patient four-on-the-floor with a soft ghost on beat 3. No double kicks.",
+        bass_pattern="Sub-bass focused. Octave drops on bar 3 give forward pull.",
+        hi_hat_pattern="Open hat on upbeats or closed 8th-note drive.",
+        energy_arc="sustained",
+        rules=(
+            "Keep the groove patient and warm.",
+            "Use long soulful chord tones instead of busy stabs.",
+            "Bass should feel deep and rounded.",
+            "Leave space for late-night atmosphere.",
+            "Let subtle shuffle carry the movement.",
+        ),
+        rule_breakers=(
+            "add a #11 to the chord voicing",
+            "drop the kick for 4 bars",
+        ),
+        blends_with=("house", "amapiano", "uk garage"),
+        vibe_words=("deep", "soulful", "late-night", "rhodes", "warm", "hypnotic", "jazzy"),
+    ),
+    "tech_house": CuratedGenreDNA(
+        name="Tech House",
+        bpm_range=(127, 132),
+        swing_percent=(50, 52),
+        bar_grid="4/4 16-bar phrases",
+        structure=("intro 16", "build 32", "peak 32", "reduction 16", "peak 2 32", "outro 16"),
+        kick_pattern="Relentless four-on-the-floor at full velocity. No variation, no mercy.",
+        bass_pattern="Rolling 16th-note riff. Tight and industrial. Bass is texture as much as groove.",
+        hi_hat_pattern="16th-note closed hats, high velocity, or alternating open/closed 16ths.",
+        energy_arc="meditative",
+        rules=(
+            "Keep the kick relentless and machine-like.",
+            "Use tight short bass notes with minimal melodic movement.",
+            "Let pressure build through repetition.",
+            "Hats should feel urgent and close to the grid.",
+            "Chords are stabs or absent, not lush pads.",
+        ),
+        rule_breakers=(
+            "drop all chords, keep only kick and bass for 8 bars",
+            "add a pitched LFO stab repeating every beat",
+        ),
+        blends_with=("techno", "house", "uk garage"),
+        vibe_words=("dark", "industrial", "techno-edge", "rolling", "minimal", "peak-hour", "pressure"),
     ),
     "techno": CuratedGenreDNA(
         name="Techno",
@@ -989,6 +1338,8 @@ CURATED_GENRES: dict[str, CuratedGenreDNA] = {
 }
 
 CURATED_ALIASES: dict[str, str] = {
+    "deep house": "deep_house",
+    "tech house": "tech_house",
     "ukg": "uk garage",
     "garage": "uk garage",
     "2-step": "uk garage",
@@ -999,10 +1350,30 @@ CURATED_ALIASES: dict[str, str] = {
     "afrobeat": "afrobeats",
 }
 
+HOUSE_SUBGENRE_ALIASES: tuple[tuple[str, str], ...] = (
+    ("acid house", "acid_house"),
+    ("ambient house", "ambient_house"),
+    ("bass house", "bass_house"),
+    ("chicago house", "chicago_house"),
+    ("deep house", "deep_house"),
+    ("disco house", "disco_house"),
+    ("electro house", "electro_house"),
+    ("french house", "french_house"),
+    ("funky house", "funky_house"),
+    ("garage house", "garage_house"),
+    ("g-house", "g_house"),
+    ("g house", "g_house"),
+    ("minimal house", "minimal_house"),
+    ("progressive house", "progressive_house"),
+    ("tech house", "tech_house"),
+    ("tribal house", "tribal_house"),
+    ("tropical house", "tropical_house"),
+)
+
 
 def lookup_genre(name: str) -> GenreDNA:
     """Return the GenreDNA for a genre name, falling back to House."""
-    return GENRE_REGISTRY.get(name.lower().strip(), DEFAULT_DNA)
+    return _RESOLVED_GENRE_REGISTRY.get(name.lower().strip(), DEFAULT_DNA)
 
 
 def normalize_curated_genre_id(name: str) -> str:
@@ -1154,6 +1525,10 @@ def curated_default_bpm(genre_name: str) -> int | None:
 def detect_style_from_text(text: str) -> str:
     """Identify the genre from a string (prompt or path)."""
     lowered = text.lower()
+
+    for phrase, style_id in HOUSE_SUBGENRE_ALIASES:
+        if phrase in lowered:
+            return style_id
     
     # Priority matches
     if any(word in lowered for word in ["drum n bass", "dnb"]):
@@ -1172,6 +1547,10 @@ def detect_style_from_text(text: str) -> str:
         return "ambient"
     if "trance" in lowered:
         return "trance"
+    if any(word in lowered for word in ["deep house", "soulful house", "late-night house", "rhodes house"]):
+        return "deep_house"
+    if any(word in lowered for word in ["tech house", "techno house", "dark house", "industrial house", "peak-hour house"]):
+        return "tech_house"
     if "techno" in lowered:
         return "techno"
     if "trap" in lowered:

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from vibelton.planner import local_plan, enrich_actions, plan
+from vibelton.planner import local_plan, enrich_actions, plan, role_palette, discover_installed_drum_kits, score_drum_kits
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -94,6 +95,67 @@ class PlannerActionSupportTest(unittest.TestCase):
         plan = local_plan("Create an expanded Drum n Bass arrangement at 172 BPM with atmospheric pad and fast drums.")
         load_action = next(action for action in plan["actions"] if action["type"] == "load_stock_instruments")
         self.assertNotIn("Drum Rack", load_action["tracks"]["Drum Instrument"])
+
+    def test_melodic_stock_palettes_prefer_preset_queries_before_default_devices(self) -> None:
+        palette = role_palette("Create a techno song with Analog pads and a dark lead.", "pad")
+        self.assertTrue(palette[0].endswith("Pad"))
+        self.assertGreater(palette.index("Analog"), 0)
+
+    def test_house_subgenre_palettes_use_specific_role_sounds(self) -> None:
+        cases = [
+            ("Create acid house with squidgy basslines.", "bass", "Acid Bass"),
+            ("Create disco house with funky live bass.", "bass", "Electric Bass"),
+            ("Create garage house with organ bass.", "bass", "Whose Organ"),
+            ("Create tropical house with sunny plucks.", "riff", "vibraphone"),
+            ("Create progressive house with epic lead.", "hook", "Wavetable Lead"),
+        ]
+        for prompt, role, expected in cases:
+            with self.subTest(prompt=prompt, role=role):
+                self.assertIn(expected, role_palette(prompt, role)[:6])
+
+    def test_drum_kit_scan_finds_installed_stock_factory_pack_kits(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "Factory Packs"
+            kit = root / "Designer Drums" / "Drums" / "Kit-Carbonized.adg"
+            hit = root / "Designer Drums" / "Drums" / "Drum Hits" / "Kick" / "Kick Carbonized.adg"
+            kit.parent.mkdir(parents=True)
+            hit.parent.mkdir(parents=True)
+            kit.write_text("", encoding="utf-8")
+            hit.write_text("", encoding="utf-8")
+
+            kits = discover_installed_drum_kits((root,))
+
+        self.assertEqual(["Kit-Carbonized"], [item["name"] for item in kits])
+
+    def test_drum_palette_scores_installed_kits_against_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "Factory Packs"
+            dark = root / "Designer Drums" / "Drums" / "Kit-Carbonized.adg"
+            hiphop = root / "Golden Era Hip-Hop Drums by Sound Oracle" / "Drums" / "Otari Bounce Kit.adg"
+            dark.parent.mkdir(parents=True)
+            hiphop.parent.mkdir(parents=True)
+            dark.write_text("", encoding="utf-8")
+            hiphop.write_text("", encoding="utf-8")
+
+            palette = score_drum_kits("Create a dark machine techno song.", "techno", "bd", roots=(root,))
+
+        self.assertEqual("Kit-Carbonized", palette[0])
+
+    def test_house_subgenre_drum_scoring_uses_subgenre_terms(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "Factory Packs"
+            ethno = root / "Designer Drums" / "Drums" / "Kit-Ethno.adg"
+            dmx = root / "Drum Machines" / "Drums" / "Kit-DMX Classic.adg"
+            ethno.parent.mkdir(parents=True)
+            dmx.parent.mkdir(parents=True)
+            ethno.write_text("", encoding="utf-8")
+            dmx.write_text("", encoding="utf-8")
+
+            tribal = score_drum_kits("Create tribal house with hand percussion.", "tribal_house", "percussion", roots=(root,))
+            funky = score_drum_kits("Create funky house with bright drums.", "funky_house", "bd", roots=(root,))
+
+        self.assertEqual("Kit-Ethno", tribal[0])
+        self.assertEqual("Kit-DMX Classic", funky[0])
 
     def test_named_soft_keys_melody_stays_single_track(self) -> None:
         plan = local_plan("Make a track called Soft Keys and add a C major melody.")

@@ -2,6 +2,10 @@
 
 To avoid overwhelming new users during onboarding, we will separate the Vibelton experience into two distinct, purpose-driven modes. This conceptual split allows us to integrate the "Making Music" strategies cleanly, guiding the user based on where they are in their creative process.
 
+## Pinned Follow-Up: Ableton Library Onboarding
+
+Vibelton should add an onboarding inventory step for production builds. The app needs permission-aware scans of the user's Ableton Factory Packs, User Library, and VST/AU folders, then should cache a local manifest of available stock Drum Racks, instrument presets, and plugins. The current planner can already score installed Ableton Factory Pack drum kits when it finds them locally; the product layer still needs UX for first-run scanning, rescanning, missing-library states, and user control over which folders are indexed.
+
 ## User Review Required
 
 > [!IMPORTANT]

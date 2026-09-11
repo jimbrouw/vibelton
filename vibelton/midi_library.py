@@ -46,18 +46,29 @@ DRUM_KEYWORDS = {
 }
 
 STYLE_ALIASES = [
-    ("drum n bass", ("drum n bass", "dnb")),
-    ("jungle", ("jungle", "old skool", "breakbeat")),
-    ("uk garage", ("uk garage", "garage")),
-    ("hip hop", ("hip hop", "hip-hop", "hiphop", "trap")),
-    ("house", ("house", "four to the floor")),
-    ("techno", ("techno",)),
-    ("trance", ("trance",)),
-    ("reggaeton", ("reggaeton", "dembow")),
-    ("reggae", ("reggae", "dancehall", "dance hall")),
-    ("downtempo", ("downtempo",)),
-    ("afrobeats", ("afrobeats", "afrobeat")),
-    ("amapiano", ("amapiano",)),
+    # Sub-genres first so they match before the broader parent
+    ("deep_house",   ("deep house", "deep_house", "soulful house")),
+    ("tech_house",   ("tech house", "tech_house")),
+    ("drum n bass",  ("drum n bass", "drum and bass", "dnb", "d&b", "d & b")),
+    ("jungle",       ("jungle", "old skool", "breakbeat", "amen", "ragga jungle")),
+    ("uk garage",    ("uk garage", "ukg", "garage", "2 step", "2step", "2-step")),
+    ("hip hop",      ("hip hop", "hip-hop", "hiphop", "boom bap", "lo fi", "lo-fi", "lofi")),
+    ("trap",         ("trap", "drill", "plugg")),
+    ("house",        ("house", "four to the floor", "chicago house", "funky house",
+                      "disco house", "tribal house", "progressive house", "acid house")),
+    ("techno",       ("techno", "industrial", "minimal techno")),
+    ("trance",       ("trance", "psy trance", "psytrance", "progressive trance")),
+    ("reggaeton",    ("reggaeton", "dembow", "latin trap")),
+    ("reggae",       ("reggae", "dancehall", "dance hall", "ska", "dub")),
+    ("downtempo",    ("downtempo", "chillout", "chill out", "trip hop", "triphop")),
+    ("afrobeats",    ("afrobeats", "afrobeat", "afro")),
+    ("amapiano",     ("amapiano", "amapiano")),
+    ("funk",         ("funk", "funky", "groove", "r&b", "rnb", "soul", "neo soul")),
+    ("pop",          ("pop", "edm pop", "electropop", "synth pop", "synthpop")),
+    ("ambient",      ("ambient", "cinematic", "atmospheric", "chillwave")),
+    ("jazz",         ("jazz", "bebop", "swing", "blues")),
+    ("latin",        ("latin", "salsa", "bossa nova", "bossanova", "samba", "cumbia")),
+    ("classical",    ("classical", "orchestral", "piano solo", "strings")),
 ]
 
 STYLE_WORDS = {alias: style for style, aliases in STYLE_ALIASES for alias in aliases}
@@ -519,10 +530,18 @@ def fit_pattern(notes: list[dict[str, Any]], bars: int, keep: set[int], energy: 
 
 
 def style_from_path(path: Path) -> str:
-    filename_style = style_from_text(path.stem)
-    if filename_style != "generic":
-        return filename_style
-    return detect_style(str(path).replace("_", " ").replace("-", " "))
+    # Check full path — folder names carry genre context (e.g. "Deep House Chords/file.mid")
+    full_text = str(path).replace("_", " ").replace("-", " ")
+    full_style = style_from_text(full_text)
+    if full_style != "generic":
+        return full_style
+    # genre_dna detect_style recognises sub-genres (deep_house, tech_house, etc.)
+    # Only trust it when it returns something more specific than "house", which is
+    # the universal fallback and would flood that bucket with unrelated patterns.
+    detected = detect_style(full_text)
+    if detected and detected != "house":
+        return detected
+    return "generic"
 
 
 def bpm_from_path(path: Path) -> int | None:
