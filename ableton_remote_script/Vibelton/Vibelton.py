@@ -123,7 +123,7 @@ class Vibelton(ControlSurface):
             source_track = self._find_track(action.get("source_track"))
             target_track = self._find_track(action.get("target_track"))
             if source_track and target_track:
-                self._route_midi(source_track, target_track)
+                self._route_midi(source_track, target_track, attempts_left=8)
         elif action_type == "rename_tracks_from_devices":
             self._rename_tracks_from_devices()
         elif action_type == "set_track_volume":
@@ -366,17 +366,32 @@ class Vibelton(ControlSurface):
                     return item
         return None
 
-    def _search_browser_tree(self, item, wanted, depth, max_depth, exact_only=False):
+    def _query_tokens(self, wanted):
+        return [part for part in str(wanted).replace("/", " ").replace("-", " ").split() if len(part) > 1]
+
+    def _path_matches_query(self, wanted, path_parts):
+        haystack = " ".join([str(part).lower() for part in path_parts if part])
+        if wanted in haystack:
+            return True
+        tokens = self._query_tokens(wanted)
+        return bool(tokens) and all(token in haystack for token in tokens)
+
+    def _search_browser_tree(self, item, wanted, depth, max_depth, exact_only=False, path_parts=None):
         if depth > max_depth or item is None:
             return None
+        path_parts = path_parts or []
         try:
             name = getattr(item, "name", "")
             is_loadable = bool(getattr(item, "is_loadable", False))
             lowered_name = name.lower()
-            if is_loadable and (lowered_name == wanted or (not exact_only and wanted in lowered_name)):
+            current_path = path_parts + [lowered_name]
+            if is_loadable and (
+                lowered_name == wanted
+                or (not exact_only and (wanted in lowered_name or self._path_matches_query(wanted, current_path)))
+            ):
                 return item
         except Exception:
-            pass
+            current_path = path_parts
 
         try:
             children = item.children
@@ -392,7 +407,13 @@ class Vibelton(ControlSurface):
                 if child_loadable and child_name == wanted:
                     exact_candidate = child
                     break
-                if not exact_only and child_loadable and wanted in child_name and fuzzy_candidate is None:
+                child_path = current_path + [child_name]
+                if (
+                    not exact_only
+                    and child_loadable
+                    and (wanted in child_name or self._path_matches_query(wanted, child_path))
+                    and fuzzy_candidate is None
+                ):
                     fuzzy_candidate = child
             except Exception:
                 pass
@@ -402,23 +423,57 @@ class Vibelton(ControlSurface):
             return fuzzy_candidate
 
         for child in children:
-            found = self._search_browser_tree(child, wanted, depth + 1, max_depth, exact_only=exact_only)
+            found = self._search_browser_tree(child, wanted, depth + 1, max_depth, exact_only=exact_only, path_parts=current_path)
             if found is not None:
                 return found
         return None
 
-    def _route_midi(self, source_track, target_track):
+    def _route_midi_by_name(self, source_name, target_name, attempts_left):
+        source_track = self._find_track(source_name, required=False)
+        target_track = self._find_track(target_name, required=False)
+        if source_track and target_track:
+            self._route_midi(source_track, target_track, attempts_left=attempts_left)
+
+    def _schedule_route_retry(self, source_track, target_track, attempts_left, reason):
+        if attempts_left <= 0:
+            self._log("error", "MIDI route retry exhausted for %s -> %s: %s" % (source_track.name, target_track.name, reason))
+            return
+        source_name = source_track.name
+        target_name = target_track.name
+        self._log("debug", "MIDI route not ready for %s -> %s (%s). Retrying..." % (source_name, target_name, reason))
+        self.schedule_message(
+            8,
+            lambda: self._route_midi_by_name(source_name, target_name, attempts_left - 1),
+        )
+
+    def _track_device_names(self, track):
+        names = []
+        try:
+            for device in track.devices:
+                name = getattr(device, "name", "")
+                if name:
+                    names.append(name.lower().strip())
+        except Exception:
+            pass
+        return names
+
+    def _route_midi(self, source_track, target_track, attempts_left=0):
         try:
             if hasattr(source_track, "available_output_routing_types"):
                 target_name = target_track.name.lower().strip()
                 matched_routing = None
+                routing_options = []
                 
                 # Log available options for debugging
                 try:
-                    options = [getattr(r, "display_name", "") for r in source_track.available_output_routing_types]
-                    self._log("debug", "Routing types for %s: %s" % (source_track.name, str(options)))
+                    routing_options = [getattr(r, "display_name", "") for r in source_track.available_output_routing_types]
+                    self._log("debug", "Routing types for %s: %s" % (source_track.name, str(routing_options)))
                 except Exception:
                     pass
+
+                if not any(str(option).strip() for option in routing_options):
+                    self._schedule_route_retry(source_track, target_track, attempts_left, "routing types unavailable")
+                    return
 
                 for routing in source_track.available_output_routing_types:
                     disp = getattr(routing, "display_name", "").lower().strip()
@@ -454,23 +509,49 @@ class Vibelton(ControlSurface):
                     self._log("debug", "Routed %s MIDI output to %s via output_routing_type" % (source_track.name, target_track.name))
                     
                     if hasattr(source_track, "available_output_routing_channels"):
-                        device_channel = None
+                        exact_device_channel = None
+                        first_device_channel = None
                         fallback_channel = None
+                        target_device_names = self._track_device_names(target_track)
+                        channel_options = []
+                        try:
+                            channel_options = [getattr(c, "display_name", "") for c in source_track.available_output_routing_channels]
+                            self._log("debug", "Routing channels for %s: %s" % (source_track.name, str(channel_options)))
+                        except Exception:
+                            pass
+                        if not any(str(option).strip() for option in channel_options):
+                            self._schedule_route_retry(source_track, target_track, attempts_left, "routing channels unavailable")
+                            return
                         for channel in source_track.available_output_routing_channels:
-                            disp = getattr(channel, "display_name", "").lower()
+                            disp = getattr(channel, "display_name", "").lower().strip()
+                            if not disp:
+                                continue
                             if "track in" in disp or "midi in" in disp:
                                 fallback_channel = channel
-                            elif disp:
-                                device_channel = channel
+                                continue
+                            if disp in ("all channels", "all ins", "all outputs"):
+                                continue
+                            if disp.startswith("all "):
+                                continue
+                            if first_device_channel is None:
+                                first_device_channel = channel
+                            if target_device_names and any(device_name in disp for device_name in target_device_names):
+                                exact_device_channel = channel
                                 break
-                        
-                        best_channel = device_channel or fallback_channel
+
+                        best_channel = exact_device_channel or first_device_channel
+                        if best_channel is None and fallback_channel and attempts_left > 0:
+                            self._schedule_route_retry(source_track, target_track, attempts_left, "device routing channel unavailable")
+                            return
+                        best_channel = best_channel or fallback_channel
                         if best_channel:
                             source_track.output_routing_channel = best_channel
                             self._log("debug", "Selected routing channel: %s" % getattr(best_channel, "display_name", "unknown"))
                     return
                 else:
                     self._log("error", "Could not find routing type matching target track name: %s" % target_track.name)
+                    self._schedule_route_retry(source_track, target_track, attempts_left, "target routing type unavailable")
+                    return
             
             if hasattr(source_track, "current_output_routing"):
                 # Avoid passing Track object if the API requires a string (per C++ signature mismatch error)
@@ -487,6 +568,7 @@ class Vibelton(ControlSurface):
             self._log("error", "No routing properties supported on this Live build for track %s" % source_track.name)
         except Exception as exc:
             self._log("error", "Failed to route MIDI from %s to %s: %s" % (source_track.name, target_track.name, exc))
+            self._schedule_route_retry(source_track, target_track, attempts_left, str(exc))
 
     def _create_midi_track(self, name):
         track = self._find_track(name, required=False)

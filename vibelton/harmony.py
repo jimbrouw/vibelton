@@ -292,6 +292,15 @@ def weighted_progression(style: str, mode: str, colour: str, bars: int, seed: in
     return result
 
 
+# Genres where the main/drop section traditionally reduces to 1-2 chords.
+_EDM_STYLES = {
+    "house", "uk garage", "techno", "trance",
+    "deep_house", "tech_house",
+    "drum n bass", "jungle", "dubstep", "grime",
+    "trap",
+}
+
+
 def plan_harmony(
     root_midi: int,
     mode: str,
@@ -302,9 +311,27 @@ def plan_harmony(
     seed: int,
     extensions: tuple[int, ...] = (),
     parallel_motion: bool = False,
+    energy: str = "main",
 ) -> HarmonyPlan:
-    degrees = weighted_progression(style, mode, colour, bars, seed)
-    raw = [chord_from_degree(root_midi, mode, degree, octave, extensions, colour) for degree in degrees]
+    # Section-aware degree selection (Fix 2: section-aware reharmonisation)
+    working_mode = mode
+    if energy == "intro":
+        tonic = "i" if mode == "minor" else "I"
+        sub = "iv" if mode == "minor" else "IV"
+        _cycle = [tonic, tonic, sub, tonic]
+        degrees = [_cycle[bar % len(_cycle)] for bar in range(bars)]
+    elif energy == "main" and style in _EDM_STYLES:
+        # Drop: reduce to at most 2 unique chords for a more hypnotic feel
+        full = weighted_progression(style, mode, colour, bars, seed)
+        unique = list(dict.fromkeys(full))[:2]
+        degrees = [unique[bar % len(unique)] for bar in range(bars)]
+    elif energy == "break":
+        # Borrow from parallel mode for harmonic contrast in the breakdown
+        working_mode = "major" if mode == "minor" else "minor"
+        degrees = weighted_progression(style, working_mode, colour, bars, seed)
+    else:
+        degrees = weighted_progression(style, mode, colour, bars, seed)
+    raw = [chord_from_degree(root_midi, working_mode, degree, octave, extensions, colour) for degree in degrees]
     if parallel_motion and raw:
         first_voiced = sorted(raw[0])
         first_root = raw[0][0]

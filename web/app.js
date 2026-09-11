@@ -888,6 +888,7 @@ const finderDefaults = {
 
 let finderSelections = { ...finderDefaults };
 let finderCustomValues = Object.fromEntries(songFinderGroups.map((group) => [group.id, ""]));
+const houseSubgenreCards = window.HOUSE_SUBGENRE_CARDS || [];
 
 const form = document.querySelector("#composer");
 const prompt = document.querySelector("#prompt");
@@ -910,9 +911,13 @@ const clearPrompt = document.querySelector("#clearPrompt");
 const copyPrompt = document.querySelector("#copyPrompt");
 const makeSongPrompt = document.querySelector("#makeSongPrompt");
 
-let activeTab = activeLibrary[0].id;
+let activeTab = defaultTabForLibrary(activeLibrary);
 let currentMode = "inspiration"; // inspiration, songmaker, or finisher
 let lastSentPrompt = "";
+
+function defaultTabForLibrary(library) {
+  return library.some((category) => category.id === "genres") ? "genres" : library[0].id;
+}
 
 // --- VST scanning state ---
 let scannedVstPlugins = [];
@@ -1146,7 +1151,7 @@ modeToggle.addEventListener("click", (event) => {
   button.classList.add("active");
 
   if (newMode !== "songmaker") {
-    activeTab = activeLibrary[0].id;
+    activeTab = defaultTabForLibrary(activeLibrary);
   }
   renderTabs();
   renderPromptGrid();
@@ -1169,6 +1174,13 @@ search.addEventListener("input", renderPromptGrid);
 });
 
 promptGrid.addEventListener("click", (event) => {
+  const genreCard = event.target.closest("[data-genre-prompt]");
+  if (genreCard) {
+    prompt.value = customizePrompt(genreCard.dataset.genrePrompt);
+    prompt.focus();
+    return;
+  }
+
   const finderChip = event.target.closest("[data-finder-chip]");
   if (finderChip) {
     finderSelections[finderChip.dataset.group] = finderChip.dataset.value;
@@ -1251,7 +1263,11 @@ form.addEventListener("submit", async (event) => {
 function renderTabs() {
   tabs.innerHTML = "";
   if (currentMode === "songmaker") return;
-  activeLibrary.forEach((category) => {
+  const orderedLibrary = [
+    ...activeLibrary.filter((category) => category.id === "genres"),
+    ...activeLibrary.filter((category) => category.id !== "genres"),
+  ];
+  orderedLibrary.forEach((category) => {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.tab = category.id;
@@ -1284,6 +1300,10 @@ function renderPromptGrid() {
   resultCount.textContent = `${prompts.length} prompt${prompts.length === 1 ? "" : "s"}`;
   promptGrid.innerHTML = "";
 
+  if (category.id === "genres") {
+    renderGenreCards();
+  }
+
   prompts.forEach((item) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -1302,6 +1322,35 @@ function renderPromptGrid() {
     empty.textContent = "No prompts match that search.";
     promptGrid.appendChild(empty);
   }
+}
+
+function renderGenreCards() {
+  const wrapper = document.createElement("section");
+  wrapper.className = "genre-card-panel";
+  const cardMarkup = houseSubgenreCards
+    .map(
+      (card) => `
+        <button class="prompt-button genre-sub-card" type="button" data-genre-prompt="${escapeAttribute(card.prompt)}">
+          <span>${escapeHtml(card.label)}</span>
+          <small>${escapeHtml(card.subline)}</small>
+          <p>${escapeHtml(card.description)}</p>
+        </button>`
+    )
+    .join("");
+  wrapper.innerHTML = `
+    <details class="genre-parent-card">
+      <summary>
+        <span>
+          <strong>House</strong>
+          <small>${houseSubgenreCards.length} detailed sub-genre prompts</small>
+        </span>
+      </summary>
+      <div class="genre-sub-cards">
+        ${cardMarkup}
+      </div>
+    </details>
+  `;
+  promptGrid.appendChild(wrapper);
 }
 
 function renderSongFinder() {

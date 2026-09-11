@@ -5,6 +5,8 @@ import os
 import re
 import urllib.error
 import urllib.request
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from .actions import (
@@ -57,22 +59,30 @@ ACTION_SCHEMA: dict[str, Any] = {
 
 
 SYSTEM_PROMPT = """You convert music production requests into safe Ableton Live actions.
-Return only JSON matching the schema.
-Use these action types:
-- set_tempo {bpm}
-- set_song_position {beat}
-- start_playback {}
-- stop_playback {}
-- create_midi_track {name}
-- create_audio_track {name}
-- create_scene {name}
-- create_midi_clip {track_name, clip_name, scene_index, length_beats, notes}
-- set_track_volume {track_name, db}
-- set_track_pan {track_name, pan}
-- set_send {track_name, send_index, value}
-- add_device {track_name, device_name}
-- rename_tracks_from_devices {}
-- route_midi {source_track, target_track}
+
+CRITICAL: Return ONLY valid JSON in exactly this structure — no other text:
+{"reply": "brief human description", "actions": [{"type": "action_name", ...params...}, ...]}
+
+Each action MUST have "type" as a top-level key with the action name as its string value, plus any parameters as sibling keys at the same level. Example:
+{"type": "set_tempo", "bpm": 124}
+{"type": "create_midi_track", "name": "Bass"}
+{"type": "create_midi_clip", "track_name": "Bass", "clip_name": "Bassline", "scene_index": 0, "length_beats": 16, "notes": [{"pitch": 36, "start": 0, "duration": 0.5, "velocity": 100, "mute": false}]}
+
+Available action types (type value → required params):
+- set_tempo → bpm
+- set_song_position → beat
+- start_playback → (no extra params)
+- stop_playback → (no extra params)
+- create_midi_track → name
+- create_audio_track → name
+- create_scene → name
+- create_midi_clip → track_name, clip_name, scene_index, length_beats, notes
+- set_track_volume → track_name, db
+- set_track_pan → track_name, pan
+- set_send → track_name, send_index, value
+- add_device → track_name, device_name
+- rename_tracks_from_devices → (no extra params)
+- route_midi → source_track, target_track
 
 Notes are objects: {pitch, start, duration, velocity, mute}. MIDI pitch is 0-127. Beat positions use Ableton beats.
 Bass tracks must be strictly monophonic (one note at a time, never chords) and sit in a low register (MIDI note numbers 24 to 55). Never write chords or high-pitched melodies for the bass track.
@@ -89,17 +99,60 @@ Adjacent codes (e.g. 8A to 7A or 9A, or 8A to 8B) are harmonically compatible. I
 
 def plan(message: str, vst_map: dict[str, str] | None = None) -> dict[str, Any]:
     vst_map = vst_map or {}
+    lowered = message.lower()
+
+    # Arrangement / song-sketch requests always use the local planner.
+    # The local planner has curated multi-section logic (expanded_song_sketch_plan,
+    # existing_session_finisher_plan, edm_arrangement_plan) that produces full
+    # arrangements with copy_session_to_arrangement — something OpenAI can't
+    # reliably replicate in a single API call.
+    if _is_arrangement_request(lowered):
+        lp = local_plan(message, vst_map=vst_map)
+        lp["actions"] = enrich_actions(message, lp.get("actions", []), vst_map=vst_map)
+        return lp
+
+    # Focused creative requests (specific part, theory, key, BPM) benefit from
+    # OpenAI's harmonic intelligence.
     if os.environ.get("OPENAI_API_KEY"):
         try:
             return openai_plan(message, vst_map=vst_map)
         except Exception as exc:
             fallback = local_plan(message, vst_map=vst_map)
-            fallback["reply"] = f"OpenAI planning failed locally: {exc}. I queued a local interpretation instead."
+            fallback["reply"] = f"OpenAI planning failed: {exc}. I queued a local interpretation instead."
             fallback["actions"] = enrich_actions(message, fallback.get("actions", []), vst_map=vst_map)
             return fallback
+
     lp = local_plan(message, vst_map=vst_map)
     lp["actions"] = enrich_actions(message, lp.get("actions", []), vst_map=vst_map)
     return lp
+
+
+def _is_arrangement_request(lowered: str) -> bool:
+    """Return True when the request calls for a full multi-section arrangement.
+
+    These requests should always go through the local planner, which has
+    curated genre-aware song structure logic.  OpenAI is reserved for focused
+    creative requests (specific parts, theory, key/BPM overrides).
+    """
+    # Explicit arrangement / sketch phrases
+    arrangement_phrases = [
+        "song sketch", "full track", "full song", "song structure",
+        "arrangement", "produce a", "make a track", "make me a track",
+        "create a track", "hear something", "quick idea", "quick demo",
+        "production sketch", "reference song", "inspirational", "inspiration",
+        "song idea", "starting idea", "starting point",
+        "finish", "finisher", "arrange", "existing loops", "session loops",
+        "session view", "my loops",
+    ]
+    if any(phrase in lowered for phrase in arrangement_phrases):
+        return True
+
+    # Genre keyword without a focused-part qualifier → song sketch
+    detected = detect_style(lowered)
+    if detected and not is_focused_part_prompt(lowered):
+        return True
+
+    return False
 
 
 def openai_plan(message: str, vst_map: dict[str, str] | None = None) -> dict[str, Any]:
@@ -109,22 +162,15 @@ def openai_plan(message: str, vst_map: dict[str, str] | None = None) -> dict[str
     if genre_context:
         system_prompt = f"{SYSTEM_PROMPT}\n\nUse this curated genre grammar when generating musical actions:\n{genre_context}"
     payload = {
-        "model": os.environ.get("OPENAI_MODEL", "gpt-5.2"),
-        "input": [
+        "model": os.environ.get("OPENAI_MODEL", "gpt-4o"),
+        "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": message},
         ],
-        "text": {
-            "format": {
-                "type": "json_schema",
-                "name": "ableton_action_plan",
-                "strict": True,
-                "schema": ACTION_SCHEMA,
-            }
-        },
+        "response_format": {"type": "json_object"},
     }
     request = urllib.request.Request(
-        "https://api.openai.com/v1/responses",
+        "https://api.openai.com/v1/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}",
@@ -140,12 +186,24 @@ def openai_plan(message: str, vst_map: dict[str, str] | None = None) -> dict[str
         raise RuntimeError(f"OpenAI API returned {exc.code}: {body[:400]}") from exc
 
     text = extract_response_text(data)
-    parsed = json.loads(text)
+    # Strip markdown code fences if model wraps JSON in ```json ... ```
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.split("\n", 1)[-1]
+        stripped = stripped.rsplit("```", 1)[0]
+    parsed = json.loads(stripped)
     parsed["actions"] = enrich_actions(message, parsed.get("actions", []), vst_map=vst_map)
     return parsed
 
 
 def extract_response_text(data: dict[str, Any]) -> str:
+    # Chat Completions API: choices[0].message.content
+    choices = data.get("choices")
+    if choices and isinstance(choices, list):
+        content = choices[0].get("message", {}).get("content")
+        if isinstance(content, str):
+            return content
+    # Responses API fallback
     if isinstance(data.get("output_text"), str):
         return data["output_text"]
     for item in data.get("output", []):
@@ -533,6 +591,50 @@ def generate_crash_notes() -> list[dict[str, Any]]:
     }]
 
 
+def _build_section_transitions(
+    sections: list[tuple[str, int, str]],
+) -> list[dict[str, Any]]:
+    """Return actions that add a FX / Riser track with riser and crash clips at
+    section boundaries.  Called from expanded_song_sketch_plan after the main
+    track/clip creation loop.
+
+    - Build sections get a rising sweep clip (pitch ramp, velocity ramp).
+    - Main sections that immediately follow a build get a single crash cymbal clip.
+    """
+    if not any(energy == "build" for _, _, energy in sections):
+        return []
+
+    actions: list[dict[str, Any]] = [
+        {"type": "create_midi_track", "name": "FX / Riser"},
+        {"type": "set_track_volume", "track_name": "FX / Riser", "db": -12},
+    ]
+
+    prev_energy = ""
+    for scene_index, (section, bars, energy) in enumerate(sections):
+        length_beats = bars * 4
+        if energy == "build":
+            actions.append({
+                "type": "create_midi_clip",
+                "track_name": "FX / Riser",
+                "clip_name": f"{section} riser",
+                "scene_index": scene_index,
+                "length_beats": length_beats,
+                "notes": generate_riser_notes(length_beats),
+            })
+        elif energy == "main" and prev_energy == "build":
+            actions.append({
+                "type": "create_midi_clip",
+                "track_name": "FX / Riser",
+                "clip_name": f"{section} crash",
+                "scene_index": scene_index,
+                "length_beats": length_beats,
+                "notes": generate_crash_notes(),
+            })
+        prev_energy = energy
+
+    return actions
+
+
 def existing_session_finisher_plan(message: str, vst_map: dict[str, str] | None = None) -> dict[str, Any]:
     from .queue import current_state
     lowered = message.lower()
@@ -918,6 +1020,11 @@ def expanded_song_sketch_plan(message: str, vst_map: dict[str, str] | None = Non
     style_key = (style or "").lower().strip()
     if "ambient" in style_key or "cinematic" in style_key:
         allowed_tracks = {"Pad", "Chords", "Ambience", "Bass"}
+    elif style_key in {"deep_house", "tech_house"}:
+        allowed_tracks = {
+            "Chords", "Pad", "Bass", "Riff", "Hook", "Bd", "Snare / Clap",
+            "Hh / Sh / Rd", "Percussion", "Drum Instrument", "Ambience"
+        }
     elif "techno" in style_key:
         allowed_tracks = {"Bass", "Pad", "Riff", "Bd", "Snare / Clap", "Hh / Sh / Rd", "Percussion", "Drum Instrument", "Ambience"}
     elif "trap" in style_key or "hip hop" in style_key or "hip-hop" in style_key or "drill" in style_key:
@@ -1103,33 +1210,45 @@ def expanded_song_sketch_plan(message: str, vst_map: dict[str, str] | None = Non
                     "target_track": "Drum Instrument"
                 })
 
+    intro_strategies = {0: "drums_reveal", 1: "atmosphere", 2: "filtered"}
+    intro_seed = sum(ord(char) for char in message) % 3 if style_key in {"deep_house", "tech_house"} else None
+    intro_style = intro_strategies[intro_seed] if intro_seed is not None else None
+
     for scene_index, (section, bars, energy) in enumerate(sections):
+        intro_allowed_tracks = set(track_names)
+        if energy == "intro" and intro_style == "drums_reveal":
+            intro_allowed_tracks = {"Bd", "Snare / Clap", "Hh / Sh / Rd"}
+        elif energy == "intro" and intro_style == "atmosphere":
+            intro_allowed_tracks = {"Chords", "Pad", "Ambience"}
+
         actions.append({"type": "set_scene_name", "scene_index": scene_index, "name": section})
-        if "Chords" in track_names:
+        if "Chords" in track_names and "Chords" in intro_allowed_tracks:
             actions.append(scene_clip("Chords", section, "progression", scene_index, library_chords(message, bars, energy, style), bars))
-        if "Pad" in track_names:
+        if "Pad" in track_names and "Pad" in intro_allowed_tracks:
             actions.append(scene_clip("Pad", section, "wide pad", scene_index, pad_notes(message, bars, energy, style), bars))
-        if "Bass" in track_names and energy != "intro":
+        if "Bass" in track_names and "Bass" in intro_allowed_tracks and energy != "intro":
             actions.append(scene_clip("Bass", section, "bassline", scene_index, library_bassline(message, bars, "build" if energy == "build" else "main", style), bars))
-        if "Riff" in track_names and energy in {"build", "main"}:
+        if "Riff" in track_names and "Riff" in intro_allowed_tracks and energy in {"build", "main"}:
             actions.append(scene_clip("Riff", section, "riff", scene_index, riff_notes(message, bars, energy, style), bars))
-        if "Hook" in track_names and energy in {"main", "break"}:
+        if "Hook" in track_names and "Hook" in intro_allowed_tracks and energy in {"main", "break"}:
             actions.append(scene_clip("Hook", section, "hook", scene_index, hook_notes(message, bars, energy, style), bars))
-        if "Hh / Sh / Rd" in track_names:
+        if "Hh / Sh / Rd" in track_names and "Hh / Sh / Rd" in intro_allowed_tracks:
             actions.append(scene_clip("Hh / Sh / Rd", section, "hat groove", scene_index, drum_only(message, bars, energy, {42, 46, 49}, style), bars))
-        if "Hh / Sh / Rd +" in track_names and energy in {"build", "main"}:
+        if "Hh / Sh / Rd +" in track_names and "Hh / Sh / Rd +" in intro_allowed_tracks and energy in {"build", "main"}:
             actions.append(scene_clip("Hh / Sh / Rd +", section, "top lift", scene_index, drum_only(message, bars, "build", {42, 46, 49}, style), bars))
         if energy != "break":
-            if "Bd" in track_names:
+            if "Bd" in track_names and "Bd" in intro_allowed_tracks:
                 actions.append(scene_clip("Bd", section, "kick", scene_index, drum_only(message, bars, energy, {36}, style), bars))
-            if "Snare / Clap" in track_names:
+            if "Snare / Clap" in track_names and "Snare / Clap" in intro_allowed_tracks:
                 actions.append(scene_clip("Snare / Clap", section, "backbeat", scene_index, drum_only(message, bars, energy, {38, 39}, style), bars))
-            if "Percussion" in track_names:
+            if "Percussion" in track_names and "Percussion" in intro_allowed_tracks:
                 actions.append(scene_clip("Percussion", section, "perc", scene_index, percussion_notes(bars, energy, style), bars))
-        if "Drum Instrument" in track_names and not any(t in track_names for t in ["Bd", "Snare / Clap", "Hh / Sh / Rd"]):
+        if "Drum Instrument" in track_names and "Drum Instrument" in intro_allowed_tracks and not any(t in track_names for t in ["Bd", "Snare / Clap", "Hh / Sh / Rd"]):
             actions.append(scene_clip("Drum Instrument", section, "drums", scene_index, library_drums(message, bars, energy, genre=style), bars))
-        if "Ambience" in track_names:
+        if "Ambience" in track_names and "Ambience" in intro_allowed_tracks:
             actions.append(scene_clip("Ambience", section, "texture", scene_index, ambience_notes(message, bars, energy, style), bars))
+
+    actions.extend(_build_section_transitions(sections))
 
     volume_actions = []
     default_volumes = {
@@ -1206,6 +1325,10 @@ def expanded_sections(text: str, style: str | None = None) -> list[tuple[str, in
 
 def genre_words() -> list[str]:
     return [
+        "acid house",
+        "ambient house",
+        "bass house",
+        "chicago house",
         "dance and mainstage",
         "downtempo",
         "drum n bass",
@@ -1214,7 +1337,16 @@ def genre_words() -> list[str]:
         "grime",
         "hip hop",
         "hip-hop",
+        "deep house",
+        "disco house",
+        "electro house",
+        "french house",
+        "funky house",
+        "garage house",
+        "g-house",
         "house",
+        "minimal house",
+        "progressive house",
         "90s jungle",
         "jungle",
         "modern pop",
@@ -1223,7 +1355,10 @@ def genre_words() -> list[str]:
         "dancehall",
         "reggaeton",
         "rock and country",
+        "tech house",
         "techno",
+        "tribal house",
+        "tropical house",
         "trance",
         "trap",
         "hyperpop",
@@ -1234,17 +1369,400 @@ def genre_words() -> list[str]:
 
 
 ROLE_PALETTES: dict[str, list[str]] = {
-    "chords": ["Electric", "Analog", "Wavetable", "Meld", "Operator"],
-    "pad": ["Warm Pad", "Deep Pad", "Atmospheric Pad", "Meld", "Wavetable", "Analog", "Tension"],
-    "riff": ["Pluck Synth", "Acid Riff", "Short Lead", "Drift", "Wavetable", "Operator", "Meld"],
-    "hook": ["Bright Lead", "Square Lead", "Saw Lead", "Wavetable", "Meld", "Drift", "Operator"],
-    "bass": ["Basic Sub", "Acid Bass", "Sub Bass", "Electric Bass", "Operator", "Drift", "Analog", "Wavetable"],
-    "ambience": ["Texture", "Vinyl Crackle", "Rain", "Meld", "Wavetable", "Tension", "Collision"],
-    "bd": ["909 Core Kit", "808 Core Kit"],
-    "snare": ["909 Core Kit", "808 Core Kit"],
-    "hats": ["909 Core Kit", "808 Core Kit"],
-    "percussion": ["909 Core Kit", "808 Core Kit", "Collision"],
+    "chords": ["Electric Piano", "Analog Chords", "Wavetable Chords", "Meld Chords", "Operator Chords", "Electric", "Analog", "Wavetable", "Meld", "Operator"],
+    "pad": ["Warm Pad", "Deep Pad", "Atmospheric Pad", "Analog Pad", "Wavetable Pad", "Meld Pad", "Tension Pad", "Meld", "Wavetable", "Analog", "Tension"],
+    "riff": ["Pluck Synth", "Acid Riff", "Short Lead", "Drift Pluck", "Wavetable Pluck", "Operator Pluck", "Meld Pluck", "Drift", "Wavetable", "Operator", "Meld"],
+    "hook": ["Bright Lead", "Square Lead", "Saw Lead", "Analog Lead", "Wavetable Lead", "Meld Lead", "Drift Lead", "Operator Lead", "Wavetable", "Meld", "Drift", "Operator"],
+    "bass": ["Basic Sub", "Acid Bass", "Sub Bass", "Electric Bass", "Operator Bass", "Drift Bass", "Analog Bass", "Wavetable Bass", "Operator", "Drift", "Analog", "Wavetable"],
+    "ambience": ["Ambient Texture", "Vinyl Crackle", "Rain Texture", "Meld Texture", "Wavetable Texture", "Tension Texture", "Collision Texture", "Meld", "Wavetable", "Tension", "Collision"],
+    "bd": ["909 Core Kit", "808 Core Kit", "707 Core Kit", "606 Core Kit"],
+    "snare": ["909 Core Kit", "808 Core Kit", "707 Core Kit", "606 Core Kit"],
+    "hats": ["909 Core Kit", "808 Core Kit", "707 Core Kit", "606 Core Kit"],
+    "percussion": ["909 Core Kit", "808 Core Kit", "707 Core Kit", "606 Core Kit", "Collision Percussion", "Collision"],
 }
+
+DRUM_ROLES = {"bd", "snare", "hats", "percussion"}
+
+DEFAULT_ABLETON_FACTORY_PACK_ROOTS = (
+    Path.home() / "Music" / "Ableton" / "Factory Packs",
+    Path.home() / "Library" / "Application Support" / "Ableton" / "Factory Packs",
+)
+
+DRUM_KIT_FALLBACKS = [
+    "909 Core Kit",
+    "808 Core Kit",
+    "707 Core Kit",
+    "606 Core Kit",
+    "Techno Kit",
+]
+
+
+STOCK_PRESET_PALETTES: dict[str, dict[str, list[str]]] = {
+    "house": {
+        "chords": ["Electric Piano", "Analog Chords", "Wavetable Chords"],
+        "pad": ["Analog Pad", "Warm Pad", "Wavetable Pad"],
+        "riff": ["Drift Pluck", "Analog Pluck", "Wavetable Pluck"],
+        "hook": ["Analog Lead", "Wavetable Lead", "Drift Lead"],
+        "bass": ["Analog Bass", "Drift Bass", "Operator Bass"],
+        "bd": ["909 Core Kit", "707 Core Kit", "Techno Kit", "808 Core Kit", "606 Core Kit"],
+        "snare": ["707 Core Kit", "909 Core Kit", "Techno Kit", "606 Core Kit", "808 Core Kit"],
+        "hats": ["606 Core Kit", "707 Core Kit", "Techno Kit", "909 Core Kit", "808 Core Kit"],
+        "percussion": ["707 Core Kit", "606 Core Kit", "Techno Kit", "Collision Percussion"],
+    },
+    "acid_house": {
+        "chords": ["Analog Chords", "Operator Chords", "Whose Organ", "TX Piano"],
+        "pad": ["Slow Motion Pad", "Slow 5th Pad", "MembUFORelease"],
+        "riff": ["Acid Riff", "Operator Pluck", "Drift Pluck", "Percu Tone"],
+        "hook": ["Analog Lead", "Retro Steam Lead", "Metal-o Feedbackisimo Lead"],
+        "bass": ["Acid Bass", "Analog Bass", "Operator Bass", "Drift Bass", "sawbass", "Gooey Sub Rubber"],
+        "bd": ["Kit-909 Classic", "Kit-909 Tresor", "Kit-909 Myrtle", "Kit-909 Alteration", "Kit-606 Cathode"],
+        "snare": ["Kit-909 Classic", "Kit-909 Tresor", "Kit-707 Classic"],
+        "hats": ["Kit-909 Classic", "Kit-606 Cathode", "Kit-707 Classic"],
+        "percussion": ["Kit-909 Classic", "Kit-606 Cathode", "Kit-C78 Classic"],
+    },
+    "ambient_house": {
+        "chords": ["Grand Piano Pad", "Grand Piano Lost Ship", "elec. piano", "TX Piano"],
+        "pad": ["Slow Motion Pad", "Slow 5th Pad", "sludgepad", "bocpad", "czpad", "bellpad"],
+        "riff": ["Tension Pluck", "Collision", "Bell", "FM Prayer Bell", "TwoPluckedStrings"],
+        "hook": ["Dreamy", "SlowMotion", "AirMembrane", "AirPlate"],
+        "bass": ["Warm Bass", "Deep Sub", "Operator Bass", "Curt Bass"],
+        "bd": ["Kit-Wood", "Kit-White", "Acoustified Kit", "Grounded Kit", "Kindified Kit"],
+        "snare": ["Kit-Wood", "Kit-White", "Grounded Kit"],
+        "hats": ["Kit-Wood", "Grounded Kit", "Kindified Kit"],
+        "percussion": ["Kit-Wood", "Kit-Ethno", "Grounded Kit", "AirPlate"],
+        "ambience": ["Slow Motion Pad", "Slow 5th Pad", "sludgepad", "bocpad", "czpad", "bellpad", "MembUFORelease"],
+    },
+    "bass_house": {
+        "chords": ["Wavetable Chords", "Meld Chords", "BigChord"],
+        "pad": ["Dark Pad", "Meld Pad", "Wavetable Texture"],
+        "riff": ["Glitch Machine 2", "TheFMMachine", "MegaSquare", "Wavetable Pluck"],
+        "hook": ["Wavetable Lead", "MegaSquare", "VideoGameLead", "Metal-o Feedbackisimo Lead"],
+        "bass": ["Wavetable Bass", "Operator Bass", "Drift Bass", "Gooey Sub Rubber", "MatrixBass", "FMBass"],
+        "bd": ["Kit-808 Classic", "Kit-808 Magnetikz", "Kit-808 Babblebox", "Kit-909 Mastodon", "Electrified Kit"],
+        "snare": ["Kit-808 Classic", "Kit-DMX Tightdope", "Kit-909 Mastodon"],
+        "hats": ["Kit-808 Classic", "Kit-909 Mastodon", "Electrified Kit"],
+        "percussion": ["Electrified Kit", "Kit-808 Babblebox", "Static Kit (Glitch)"],
+        "ambience": ["AllFX", "KJ Sawka FX Swells", "Cluster Sound FX - Grainer"],
+    },
+    "chicago_house": {
+        "chords": ["TX Piano", "Grand Piano Classic LA Stack", "elec. piano", "Whose Organ"],
+        "pad": ["Slow Motion Pad", "Grand Piano Pad"],
+        "riff": ["Sine Keys", "Whose Organ", "Electric Piano"],
+        "hook": ["Vocal Chop", "Piano House", "Whose Organ", "TX Piano"],
+        "bass": ["Curt Bass", "Warm Bass", "Analog Bass", "Operator Bass"],
+        "bd": ["Kit-707 Classic", "Kit-909 Classic", "Kit-808 Classic", "Kit-Trax Classic", "Kit-DMX Classic"],
+        "snare": ["Kit-707 Classic", "Kit-909 Classic", "Kit-DMX Classic"],
+        "hats": ["Kit-707 Classic", "Kit-909 Classic", "Kit-606 Classic"],
+        "percussion": ["Kit-707 Classic", "Kit-Trax Classic", "Kit-DMX Classic"],
+    },
+    "deep_house": {
+        "chords": ["Rhodes", "Electric Piano", "Analog Chords"],
+        "pad": ["Warm Pad", "Analog Pad", "Meld Pad"],
+        "riff": ["Electric Riff", "Drift Pluck", "Wavetable Pluck"],
+        "hook": ["Electric Lead", "Drift Lead", "Wavetable Lead"],
+        "bass": ["Sub Bass", "Analog Bass", "Drift Bass", "Operator Bass"],
+        "bd": ["707 Core Kit", "606 Core Kit", "909 Core Kit", "Techno Kit"],
+        "snare": ["707 Core Kit", "606 Core Kit", "909 Core Kit", "Techno Kit"],
+        "hats": ["606 Core Kit", "707 Core Kit", "909 Core Kit", "Techno Kit"],
+    },
+    "disco_house": {
+        "chords": ["Guitar-Chopper Chords", "TX Piano", "Grand Piano Classic LA Stack", "synth. strings"],
+        "pad": ["Guitar-French Guitar Pad", "Grand Piano Pad"],
+        "riff": ["Guitar-Chopper Chords", "Guitar-French Guitar Pad", "synth. strings"],
+        "hook": ["synth. strings", "brass ens. 1", "brass ens. 2", "violin"],
+        "bass": ["Electric Bass", "Electric Bass Slap", "Electric Bass Open", "Analog Bass"],
+        "bd": ["Kit-707 Classic", "Kit-909 Classic", "Kit-DMX Classic", "Kit-Trax Classic", "Kit-Yellow"],
+        "snare": ["Kit-707 Classic", "Kit-909 Classic", "Kit-DMX Classic", "Kit-Yellow"],
+        "hats": ["Kit-707 Classic", "Kit-909 Classic", "Kit-Trax Classic"],
+        "percussion": ["Kit-Yellow", "Kit-Wood", "Kit-Trax Classic"],
+    },
+    "electro_house": {
+        "chords": ["Wavetable Chords", "BigChord", "Meld Chords"],
+        "pad": ["Wide Pad", "Wavetable Pad", "Meld Pad"],
+        "riff": ["MegaSquare", "VideoGameLead", "TheFMMachine"],
+        "hook": ["Wavetable Lead", "MegaSquare", "Retro Steam Lead", "Metal-o Feedbackisimo Lead"],
+        "bass": ["Wavetable Bass", "MegaSquare", "FMBass", "Gooey Sub Rubber"],
+        "bd": ["Kit-909 Mastodon", "Kit-808 Magnetikz", "Electrified Kit", "Kit-Largeness", "Kit-Meaty"],
+        "snare": ["Kit-909 Mastodon", "Kit-DMX Steroid", "Kit-Largeness"],
+        "hats": ["Electrified Kit", "Kit-909 Mastodon", "Kit-808 Magnetikz"],
+        "percussion": ["Electrified Kit", "Kit-Meaty", "Kit-Largeness"],
+    },
+    "french_house": {
+        "chords": ["Guitar-Chopper Chords", "Guitar-French Guitar Pad", "Grand Piano Classic LA Stack", "synth. strings"],
+        "pad": ["Guitar-French Guitar Pad", "Grand Piano Pad", "Slow Motion Pad"],
+        "riff": ["Guitar-Chopper Chords", "synth. strings", "TX Piano"],
+        "hook": ["brass ens. 1", "synth. strings", "vibraphone", "bell"],
+        "bass": ["Electric Bass Slap", "Electric Bass Open", "sawbass", "Warm Bass"],
+        "bd": ["Kit-909 Classic", "Kit-707 Classic", "Kit-DMX Studio", "Kit-Trax Deeptrax", "Kit-Yellow"],
+        "snare": ["Kit-909 Classic", "Kit-707 Classic", "Kit-DMX Studio"],
+        "hats": ["Kit-707 Classic", "Kit-909 Classic", "Kit-Trax Deeptrax"],
+        "percussion": ["Kit-Yellow", "Kit-Trax Deeptrax", "Kit-DMX Studio"],
+    },
+    "funky_house": {
+        "chords": ["Guitar-Chopper Chords", "TX Piano", "Whose Organ", "brass ens. 1"],
+        "pad": ["Grand Piano Pad", "Guitar-French Guitar Pad"],
+        "riff": ["Guitar-Chopper Chords", "Electric Riff", "brass ens. 2"],
+        "hook": ["brass ens. 1", "Whose Organ", "TX Piano", "vibraphone"],
+        "bass": ["Electric Bass Slap", "Electric Bass", "sawbass", "Curt Bass"],
+        "bd": ["Kit-707 Freshen Up", "Kit-909 Classic", "Kit-DMX Classic", "Kit-Yellow", "Kit-Wood"],
+        "snare": ["Kit-707 Freshen Up", "Kit-909 Classic", "Kit-DMX Classic"],
+        "hats": ["Kit-707 Freshen Up", "Kit-606 Classic", "Kit-909 Classic"],
+        "percussion": ["Kit-Wood", "Kit-Yellow", "Kit-DMX Classic"],
+    },
+    "garage_house": {
+        "chords": ["Whose Organ", "elec. piano", "TX Piano", "Grand Piano Classic LA Stack"],
+        "pad": ["Warm Pad", "Grand Piano Pad"],
+        "riff": ["Whose Organ", "Sine Keys", "elec. organ"],
+        "hook": ["Vocal Chop", "TX Piano", "Whose Organ"],
+        "bass": ["Whose Organ", "elec. organ", "Operator Bass", "Warm Bass"],
+        "bd": ["Kit-909 Classic", "Kit-707 Classic", "Kit-606 Classic", "Kit-Trax Classic", "Otari Bounce Kit"],
+        "snare": ["Kit-909 Classic", "Kit-707 Classic", "Otari Bounce Kit"],
+        "hats": ["Kit-606 Classic", "Kit-909 Classic", "Kit-707 Classic"],
+        "percussion": ["Kit-Trax Classic", "Otari Bounce Kit", "Kit-707 Classic"],
+    },
+    "g_house": {
+        "chords": ["Analog Chords", "Dark Pad", "Whose Organ"],
+        "pad": ["Slow Motion Pad", "Dark Pad", "Cluster Sound FX - Grainer"],
+        "riff": ["Drift Pluck", "Wavetable Pluck", "Percu Bass"],
+        "hook": ["Vocal Chop", "MegaSquare", "Trap Lead", "Retro Steam Lead"],
+        "bass": ["808 Bass", "Gooey Sub Rubber", "Operator Bass", "Drift Bass", "MatrixBass"],
+        "bd": ["Kit-808 Classic", "Kit-DMX Tightdope", "Kit-DMX Bust It", "Kit-909 Mastodon", "Swang Bap Kit"],
+        "snare": ["Kit-DMX Tightdope", "Kit-808 Classic", "Swang Bap Kit"],
+        "hats": ["Kit-808 Classic", "Kit-DMX Tightdope", "Swang Bap Kit"],
+        "percussion": ["Kit-DMX Bust It", "Swang Bap Kit", "Static Kit (Glitch)"],
+        "ambience": ["Slow Motion Pad", "Cluster Sound FX - Grainer", "AllFX"],
+    },
+    "minimal_house": {
+        "chords": ["Analog Chords", "Sine Keys", "Whose Organ"],
+        "pad": ["Slow 5th Pad", "AirMembrane", "Dreamy"],
+        "riff": ["Percu Tone", "TwoPluckedStrings", "Drift Pluck"],
+        "hook": ["HypnoticFM", "ElectricSeq", "PureFMSequence"],
+        "bass": ["Operator Bass", "Drift Bass", "Warm Bass", "Percu Bass"],
+        "bd": ["Kit-Minimum", "Kit-606 Classic", "Kit-606 Cathode", "Kit-707 Studio", "Grounded Kit"],
+        "snare": ["Kit-Minimum", "Kit-606 Classic", "Kit-707 Studio"],
+        "hats": ["Kit-606 Classic", "Kit-Minimum", "Kit-707 Studio"],
+        "percussion": ["Kit-Minimum", "Grounded Kit", "Percu Tone"],
+    },
+    "progressive_house": {
+        "chords": ["Wavetable Chords", "BigChord", "Grand Piano Classic LA Stack", "Analog Chords"],
+        "pad": ["Slow Motion Pad", "Grand Piano Pad", "Dreamy", "WarmStrings"],
+        "riff": ["Wavetable Pluck", "ElectricSeq", "HypnoticFM"],
+        "hook": ["Wavetable Lead", "MegaSquare", "SlowMotion", "Retro Steam Lead"],
+        "bass": ["Wavetable Bass", "Drift Bass", "Warm Bass", "MatrixBass"],
+        "bd": ["Kit-909 Classic", "Kit-909 Myrtle", "Kit-Largeness", "Electrified Kit", "Kit-707 Studio"],
+        "snare": ["Kit-909 Classic", "Kit-Largeness", "Electrified Kit"],
+        "hats": ["Kit-909 Classic", "Kit-707 Studio", "Electrified Kit"],
+        "percussion": ["Electrified Kit", "Kit-707 Studio", "Kit-909 Myrtle"],
+    },
+    "tech_house": {
+        "chords": ["Analog Chords", "Drift Chords", "Wavetable Chords"],
+        "pad": ["Dark Pad", "Meld Pad", "Wavetable Pad"],
+        "riff": ["Acid Riff", "Operator Pluck", "Drift Pluck"],
+        "hook": ["Operator Lead", "Drift Lead", "Meld Lead"],
+        "bass": ["Operator Bass", "Drift Bass", "Analog Bass"],
+        "bd": ["Techno Kit", "909 Core Kit", "606 Core Kit", "707 Core Kit"],
+        "snare": ["Techno Kit", "909 Core Kit", "707 Core Kit", "606 Core Kit"],
+        "hats": ["Techno Kit", "606 Core Kit", "909 Core Kit", "707 Core Kit"],
+        "percussion": ["Techno Kit", "909 Core Kit", "606 Core Kit", "Collision Percussion"],
+    },
+    "tribal_house": {
+        "chords": ["Analog Chords", "Slow 5th Pad", "Whose Organ"],
+        "pad": ["Slow Motion Pad", "AirMembrane", "MembUFORelease"],
+        "riff": ["AfroBars1", "AfroBars2", "Percu Tone", "Bongo", "Conga"],
+        "hook": ["brass ens. 1", "flute", "Metal Agogo", "Dynamic Klang"],
+        "bass": ["Warm Bass", "Operator Bass", "Curt Bass", "Analog Bass"],
+        "bd": ["Kit-Ethno", "Kit-Wood", "Kit-C78 Classic", "Kit-808 Classic", "AfroBars1", "AfroBars2", "Grounded Kit"],
+        "snare": ["Kit-Ethno", "Kit-Wood", "Kit-C78 Classic"],
+        "hats": ["Kit-Ethno", "Kit-Wood", "Grounded Kit"],
+        "percussion": ["Kit-Ethno", "Kit-Wood", "AfroBars1", "AfroBars2", "Conga C78"],
+        "ambience": ["Slow Motion Pad", "AirMembrane", "MembUFORelease"],
+    },
+    "tropical_house": {
+        "chords": ["elec. piano", "TX Piano", "Grand Piano Equal Bright Production", "Guitar-Soft Tremolo Room"],
+        "pad": ["Guitar-French Guitar Pad", "Grand Piano Thin Air", "Slow Motion Pad"],
+        "riff": ["Tension Pluck", "Collision", "vibraphone", "crispy xylophone", "bell"],
+        "hook": ["flute", "bell", "vibraphone", "fairy tale", "Wavetable Lead"],
+        "bass": ["Warm Bass", "Curt Bass", "Electric Bass Open", "Drift Bass"],
+        "bd": ["Kit-Wood", "Kit-Yellow", "Kit-707 Freshen Up", "Acoustified Kit", "Kindified Kit"],
+        "snare": ["Kit-Wood", "Kit-Yellow", "Acoustified Kit"],
+        "hats": ["Kit-Wood", "Kit-707 Freshen Up", "Kindified Kit"],
+        "percussion": ["Kit-Wood", "Kit-Ethno", "Kindified Kit", "vibraphone"],
+        "ambience": ["Guitar-French Guitar Pad", "Grand Piano Thin Air", "Slow Motion Pad"],
+    },
+    "techno": {
+        "chords": ["Analog Chords", "Drift Chords", "Operator Chords"],
+        "pad": ["Dark Pad", "Analog Pad", "Meld Pad", "Wavetable Pad"],
+        "riff": ["Hypnotic Riff", "Operator Pluck", "Drift Pluck"],
+        "hook": ["Minimal Hook", "Operator Lead", "Drift Lead"],
+        "bass": ["Driving Bass", "Operator Bass", "Drift Bass", "Analog Bass"],
+        "bd": ["Techno Kit", "909 Core Kit", "606 Core Kit", "808 Core Kit"],
+        "snare": ["Techno Kit", "909 Core Kit", "707 Core Kit", "606 Core Kit"],
+        "hats": ["Techno Kit", "606 Core Kit", "909 Core Kit", "707 Core Kit"],
+        "percussion": ["Techno Kit", "909 Core Kit", "Collision Percussion", "606 Core Kit"],
+    },
+    "drum n bass": {
+        "pad": ["Atmospheric Pad", "Wavetable Pad", "Meld Pad"],
+        "riff": ["Operator Pluck", "Wavetable Pluck", "Drift Pluck"],
+        "hook": ["Wavetable Lead", "Meld Lead", "Operator Lead"],
+        "bass": ["Reese Bass", "Wavetable Bass", "Operator Bass", "Drift Bass"],
+        "bd": ["Break Kit", "909 Core Kit", "808 Core Kit", "Techno Kit"],
+        "snare": ["Break Kit", "909 Core Kit", "808 Core Kit", "Techno Kit"],
+        "hats": ["Break Kit", "909 Core Kit", "808 Core Kit", "606 Core Kit"],
+        "percussion": ["Break Kit", "Collision Percussion", "909 Core Kit"],
+    },
+    "uk garage": {
+        "chords": ["Electric Piano", "Wavetable Chords", "Drift Chords"],
+        "pad": ["Warm Pad", "Wavetable Pad", "Meld Pad"],
+        "riff": ["Garage Pluck", "Drift Pluck", "Wavetable Pluck"],
+        "hook": ["Garage Lead", "Wavetable Lead", "Drift Lead"],
+        "bass": ["Bouncy Bass", "Operator Bass", "Drift Bass", "Analog Bass"],
+        "bd": ["909 Core Kit", "808 Core Kit", "707 Core Kit", "Techno Kit"],
+        "snare": ["909 Core Kit", "808 Core Kit", "707 Core Kit", "Techno Kit"],
+        "hats": ["606 Core Kit", "909 Core Kit", "707 Core Kit", "Techno Kit"],
+    },
+    "trap": {
+        "chords": ["Wavetable Chords", "Analog Chords", "Drift Chords"],
+        "pad": ["Moody Pad", "Meld Pad", "Wavetable Pad"],
+        "riff": ["Trap Pluck", "Drift Pluck", "Wavetable Pluck"],
+        "hook": ["Trap Lead", "Wavetable Lead", "Operator Lead"],
+        "bass": ["808 Bass", "Sub Bass", "Operator Bass", "Analog Bass"],
+        "bd": ["808 Core Kit", "909 Core Kit", "Techno Kit"],
+        "snare": ["808 Core Kit", "909 Core Kit", "707 Core Kit"],
+        "hats": ["808 Core Kit", "909 Core Kit", "606 Core Kit"],
+    },
+}
+
+
+def ableton_factory_pack_roots() -> tuple[Path, ...]:
+    configured = os.environ.get("VIBELTON_ABLETON_FACTORY_PACK_ROOTS", "")
+    if configured.strip():
+        return tuple(Path(part).expanduser() for part in configured.split(os.pathsep) if part.strip())
+    return DEFAULT_ABLETON_FACTORY_PACK_ROOTS
+
+
+def kit_query_name(path: Path) -> str:
+    return path.stem.strip()
+
+
+def kit_search_text(path: Path) -> str:
+    return " ".join(part.lower() for part in path.with_suffix("").parts)
+
+
+def is_stock_drum_kit(path: Path) -> bool:
+    if path.suffix.lower() != ".adg":
+        return False
+    text = kit_search_text(path)
+    name = path.stem.lower()
+    if "factory packs" not in text:
+        return False
+    if "drum hits" in text:
+        return False
+    if "/drums/" not in path.as_posix().lower():
+        return False
+    return "kit" in name or "drum" in name
+
+
+@lru_cache(maxsize=8)
+def discover_installed_drum_kits(roots: tuple[Path, ...] | None = None) -> tuple[dict[str, str], ...]:
+    search_roots = roots or ableton_factory_pack_roots()
+    kits: dict[str, dict[str, str]] = {}
+    for root in search_roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*.adg"):
+            if not is_stock_drum_kit(path):
+                continue
+            name = kit_query_name(path)
+            key = name.lower()
+            if key in kits:
+                continue
+            kits[key] = {
+                "name": name,
+                "path": str(path),
+                "search_text": kit_search_text(path),
+            }
+    return tuple(sorted(kits.values(), key=lambda item: item["name"].lower()))
+
+
+def score_drum_kit(kit: dict[str, str], text: str, style: str, role: str) -> int:
+    haystack = f"{kit.get('name', '')} {kit.get('search_text', '')}".lower()
+    prompt = text.lower()
+    score = 0
+
+    style_terms = {
+        "acid_house": ["909", "303", "acid", "606", "classic", "tresor", "myrtle", "alteration", "cathode"],
+        "ambient_house": ["wood", "white", "acoustified", "grounded", "kindified", "granular", "pitchy", "shadowed"],
+        "bass_house": ["808", "909", "electrified", "magnetikz", "babblebox", "mastodon", "largeness", "meaty"],
+        "chicago_house": ["707", "909", "808", "trax", "dmx", "classic", "freshen"],
+        "deep_house": ["707", "606", "909", "minimum", "yellow", "wood", "grounded", "designer"],
+        "disco_house": ["707", "909", "dmx", "trax", "yellow", "classic", "freshen"],
+        "electro_house": ["909", "808", "electrified", "mastodon", "largeness", "meaty", "dmx", "steroid"],
+        "french_house": ["909", "707", "dmx", "trax", "deeptrax", "yellow", "studio"],
+        "funky_house": ["707", "909", "dmx", "yellow", "wood", "freshen", "classic"],
+        "garage_house": ["909", "707", "606", "trax", "otari", "bounce", "classic"],
+        "g_house": ["808", "dmx", "tightdope", "bust it", "909", "swang", "golden era"],
+        "minimal_house": ["minimum", "606", "707", "grounded", "cathode", "studio", "clean"],
+        "progressive_house": ["909", "myrtle", "largeness", "electrified", "707", "studio"],
+        "tech_house": ["techno", "909", "606", "minimum", "carbon", "designer", "digicussion", "tresor"],
+        "tribal_house": ["ethno", "wood", "c78", "808", "afro", "grounded", "conga", "bongo"],
+        "tropical_house": ["wood", "yellow", "707", "freshen", "acoustified", "kindified", "ethno"],
+        "techno": ["techno", "909", "606", "industrial", "metal", "carbon", "carbonized", "scorched", "burned", "raged", "wicked", "minimum"],
+        "house": ["909", "707", "606", "minimum", "yellow", "designer"],
+        "drum n bass": ["break", "breakbeats", "konkrete", "ninja", "glitch", "static", "jagged", "captain", "head spins"],
+        "jungle": ["break", "breakbeats", "konkrete", "ninja", "jagged", "head spins", "funky"],
+        "uk garage": ["909", "707", "606", "swing", "bounce", "konkrete", "designer"],
+        "trap": ["808", "golden era", "hip-hop", "oracle", "slingshot", "pain killer", "deep space"],
+        "hip hop": ["golden era", "hip-hop", "breakbeats", "oracle", "boom", "swing", "otari", "swang", "slingshot"],
+        "afrobeats": ["ethno", "wood", "percussion", "yellow", "designer"],
+        "amapiano": ["ethno", "wood", "808", "percussion", "designer"],
+        "ambient": ["granular", "grain", "pitchy", "shadowed", "melodized", "konkrete", "glitch"],
+    }
+    prompt_terms = {
+        "dark": ["dark", "carbon", "carbonized", "scorched", "burned", "shadowed", "wicked", "metal"],
+        "machine": ["909", "808", "606", "707", "techno", "minimum", "carbon"],
+        "acoustic": ["drum booth", "session", "room", "wood"],
+        "break": ["break", "breakbeats", "konkrete", "ninja", "jagged", "funky"],
+        "glitch": ["glitch", "static", "grain", "granular", "konkrete", "pitchy"],
+        "lo-fi": ["golden era", "hip-hop", "otari", "swang", "vinyl", "sugar"],
+        "minimal": ["minimum", "606", "707", "clean"],
+        "heavy": ["metal", "meaty", "largeness", "wicked", "raged", "burned"],
+    }
+    role_terms = {
+        "bd": ["kick", "808", "909", "meaty", "largeness"],
+        "snare": ["snare", "rim", "707", "909", "white"],
+        "hats": ["hat", "606", "707", "909", "tight"],
+        "percussion": ["perc", "ethno", "wood", "collision", "konkrete"],
+    }
+
+    for term in style_terms.get(style, []):
+        if term in haystack:
+            score += 8
+    for trigger, terms in prompt_terms.items():
+        if trigger in prompt:
+            score += sum(10 for term in terms if term in haystack)
+    for term in role_terms.get(role, []):
+        if term in haystack:
+            score += 2
+    for token in re.findall(r"[a-z0-9]+", prompt):
+        if len(token) > 3 and token in haystack:
+            score += 3
+    if "mpe " in haystack:
+        score -= 3
+    if "drum hits" in haystack:
+        score -= 20
+    return score
+
+
+def score_drum_kits(text: str, style: str, role: str, limit: int = 12, roots: tuple[Path, ...] | None = None) -> list[str]:
+    kits = discover_installed_drum_kits(roots)
+    if not kits:
+        return []
+    seed = stable_seed(f"{style}:{role}:{text}")
+    ranked = sorted(
+        kits,
+        key=lambda kit: (-score_drum_kit(kit, text, style, role), stable_seed(f"{seed}:{kit['name']}")),
+    )
+    return [kit["name"] for kit in ranked[:limit]]
 
 
 STYLE_PALETTES: dict[str, dict[str, list[str]]] = {
@@ -1288,8 +1806,31 @@ STYLE_PALETTES: dict[str, dict[str, list[str]]] = {
         "riff": ["Bouncy Riff", "Drift", "Wavetable", "Operator"],
         "hook": ["House Lead", "Wavetable", "Drift", "Electric"],
         "bass": ["Bouncy Bass", "Analog", "Drift", "Operator"],
-        "bd": ["909 Core Kit", "808 Core Kit"],
-        "hats": ["909 Core Kit", "808 Core Kit"],
+        "bd": ["808 Core Kit", "909 Core Kit", "707 Core Kit", "606 Core Kit"],
+        "snare": ["707 Core Kit", "909 Core Kit", "808 Core Kit", "606 Core Kit"],
+        "hats": ["707 Core Kit", "606 Core Kit", "909 Core Kit", "808 Core Kit"],
+    },
+    "deep_house": {
+        "chords": ["Rhodes", "Electric", "Analog", "Meld"],
+        "pad": ["Warm House Pad", "Warm Pad", "Meld", "Analog"],
+        "riff": ["Soulful Riff", "Electric", "Drift", "Wavetable"],
+        "hook": ["House Lead", "Electric", "Drift", "Wavetable"],
+        "bass": ["Sub Bass", "Analog", "Drift", "Operator"],
+        "bd": ["707 Core Kit", "808 Core Kit", "606 Core Kit", "909 Core Kit"],
+        "snare": ["707 Core Kit", "606 Core Kit", "808 Core Kit", "909 Core Kit"],
+        "hats": ["606 Core Kit", "707 Core Kit", "808 Core Kit", "909 Core Kit"],
+        "percussion": ["Collision", "707 Core Kit", "606 Core Kit", "808 Core Kit", "909 Core Kit"],
+    },
+    "tech_house": {
+        "chords": ["Analog", "Drift", "Wavetable", "Operator"],
+        "pad": ["Dark Pad", "Tension", "Meld", "Wavetable"],
+        "riff": ["Hypnotic Riff", "Acid Riff", "Drift", "Operator"],
+        "hook": ["Minimal Hook", "Operator", "Drift", "Meld"],
+        "bass": ["Rolling Bass", "Driving Bass", "Operator", "Drift"],
+        "bd": ["909 Core Kit", "606 Core Kit", "707 Core Kit", "808 Core Kit"],
+        "snare": ["909 Core Kit", "707 Core Kit", "606 Core Kit", "808 Core Kit"],
+        "hats": ["606 Core Kit", "909 Core Kit", "707 Core Kit", "808 Core Kit"],
+        "percussion": ["909 Core Kit", "606 Core Kit", "707 Core Kit", "Collision", "808 Core Kit"],
     },
     "jungle": {
         "chords": ["Rave Chords", "Wavetable", "Tension", "Analog"],
@@ -1407,8 +1948,14 @@ STYLE_PALETTES: dict[str, dict[str, list[str]]] = {
 
 def role_palette(text: str, role: str) -> list[str]:
     style = detect_style(text)
+    if role in DRUM_ROLES:
+        scored_kits = score_drum_kits(text, style, role)
+        return unique_candidates(scored_kits + STOCK_PRESET_PALETTES.get(style, {}).get(role, []) + ROLE_PALETTES.get(role, []) + DRUM_KIT_FALLBACKS)
+
     palette = STYLE_PALETTES.get(style, {})
-    return unique_candidates(palette.get(role, []) + ROLE_PALETTES.get(role, []))
+    preset_palette = STOCK_PRESET_PALETTES.get(style, {})
+    candidates = unique_candidates(preset_palette.get(role, []) + palette.get(role, []) + ROLE_PALETTES.get(role, []))
+    return candidates
 
 
 def song_track_palette(text: str) -> dict[str, list[str]]:

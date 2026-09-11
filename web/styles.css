@@ -363,6 +363,77 @@ textarea:focus {
   font-weight: 800;
 }
 
+.genre-card-panel {
+  grid-column: 1 / -1;
+}
+
+.genre-parent-card {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.genre-parent-card summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 16px;
+}
+
+.genre-parent-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.genre-parent-card summary span {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.genre-parent-card summary strong {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.genre-parent-card summary small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.genre-parent-card summary span::after {
+  color: var(--muted);
+  content: "▸";
+  line-height: 1;
+  transition: color 200ms ease, transform 200ms ease;
+}
+
+.genre-parent-card[open] summary span::after {
+  color: var(--accent);
+  transform: rotate(90deg);
+}
+
+.genre-sub-cards {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0 16px 16px;
+}
+
+.genre-sub-card {
+  min-height: 142px;
+}
+
+.genre-sub-card p {
+  align-self: end;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+
 .empty-state {
   margin: 0;
   padding: 24px;
