@@ -910,3 +910,23 @@ html, body {
   color: #666666;
   cursor: default;
 }
+
+/* Why a role was chosen: a tooltip in the docked device, a short line in the pop-out. */
+.stem-role-reason {
+  display: none;
+}
+
+body.is-popout .stem-role-reason {
+  display: block;
+  flex-basis: 100%;
+  color: #8a8a8a;
+  font-size: 0.8em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.is-popout .stem-track-info {
+  flex-wrap: wrap;
+  row-gap: 0;
+}

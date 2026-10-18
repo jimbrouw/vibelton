@@ -124,5 +124,45 @@ class RoleMapTests(unittest.TestCase):
         self.assertEqual({"key": "Ab", "octave": 1}, by_id["t22"]["key_hint"])
 
 
+class RoleGuessTests(unittest.TestCase):
+    def guess(self, name, devices=(), clips=()):
+        from vibelton import song_sketch
+        return song_sketch._role_for({"name": name, "devices": [{"name": d} for d in devices],
+                                      "session_clips": [{"name": c} for c in clips]})
+
+    def test_track_name_beats_device_names(self) -> None:
+        role, confidence, reason = self.guess("Vox main", devices=["Electric Keys Chain", "VOCALs"])
+        self.assertEqual("Vocal", role)
+        self.assertEqual('Name has "vox"', reason)
+        self.assertGreater(confidence, 0.9)
+
+    def test_device_only_guesses_are_less_sure(self) -> None:
+        by_name = self.guess("Rhodes")
+        by_device = self.guess("Audio 3", devices=["Rhodes Classic"])
+        self.assertEqual("Chords", by_name[0])
+        self.assertEqual("Chords", by_device[0])
+        self.assertLess(by_device[1], by_name[1])
+        self.assertIn("Device", by_device[2])
+
+    def test_short_words_must_stand_alone(self) -> None:
+        self.assertEqual("Kick", self.guess("BD 909")[0])
+        self.assertEqual("Hats", self.guess("Hats")[0])
+        self.assertIsNone(self.guess("Subway Stems")[0])     # "sub" inside a word
+        self.assertIsNone(self.guess("Hatchback")[0])        # "hat" inside a word
+
+    def test_kick_wins_over_bass_in_one_name(self) -> None:
+        self.assertEqual("Kick", self.guess("808 kick kit")[0])
+        self.assertEqual("Bass", self.guess("808 Bass")[0])
+
+    def test_drum_rack_is_a_last_resort(self) -> None:
+        from vibelton import song_sketch
+        role, confidence, reason = song_sketch._role_for({"name": "Audio 7", "devices": [{"name": "Rack", "class_name": "DrumGroupDevice"}]})
+        self.assertEqual(("Percussion", 0.6), (role, confidence))
+        self.assertIn("Drum Rack", reason)
+
+    def test_no_clue_is_reported_as_unknown(self) -> None:
+        self.assertEqual((None, 0.0), self.guess("19-MIDI")[:2])
+
+
 if __name__ == "__main__":
     unittest.main()

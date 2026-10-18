@@ -32,6 +32,8 @@ ROOT = Path.home() / ".vibelton" / "production"
 LOCK = threading.RLock()
 # Latest Arrangement beat Vibelton will write to (900 bars of 4/4).
 MAX_ARRANGEMENT_BEAT = 3600.0
+# Most source tracks one scaffold uses; further tracks are listed as skipped.
+MAX_SCAFFOLD_SOURCES = 16
 PROJECT_ANALYSIS_SCHEMA = "vibelton.project-analysis/v1"
 PLAN_SCHEMA = "vibelton.production-plan/v1"
 SNAPSHOT_SCHEMA = "vibelton.production-snapshot/v1"
@@ -461,6 +463,13 @@ def _extract_audio_clips_in_set(state: dict[str, Any], production_tracks: list[d
     return audio_clips
 
 
+def _with_role_guess(track: dict[str, Any]) -> dict[str, Any]:
+    """The role the scaffold would guess for this track, so the device shows the same guess."""
+    role, confidence, reason = song_sketch._role_for(track)
+    track.update(suggested_role=role, role_confidence=confidence, role_reason=reason)
+    return track
+
+
 def analyse() -> dict[str, Any]:
     """Return qualified, local project facts; no audio claims are made here."""
     state, production = _ready_state()
@@ -478,7 +487,7 @@ def analyse() -> dict[str, Any]:
             "arrangement_end": state.get("arrangement_end"),
             "locators": copy.deepcopy(production.get("locators", [])),
         },
-        "tracks": copy.deepcopy(production["tracks"]),
+        "tracks": [_with_role_guess(track) for track in copy.deepcopy(production["tracks"])],
         "audio_clips_in_set": audio_clips_in_set,
         "missing_measurements": [
             item for item in ("audio_render", "loudness", "spectrum", "stereo", "automation")
@@ -1005,9 +1014,31 @@ def _create_session_scene_plan(payload: dict[str, Any]) -> dict[str, Any]:
         return plan
 
 
+def _layer_sections(sections: list[dict[str, Any]], chosen: dict[str, Any]) -> tuple[dict[str, set[str]], dict[str, str]]:
+    """Which sections each source track plays in.
+
+    The first track of a role plays wherever the role is active. Each further track of the same
+    role joins only from a higher energy level, so same-role stems build up towards the peak, where
+    all of them play. The second result gives each track's "k of n" for the plan summary."""
+    by_role: dict[str, list[str]] = {}
+    for track_id, (role, _clip, _length) in chosen.items():
+        by_role.setdefault(role, []).append(track_id)
+    plays: dict[str, set[str]] = {}
+    layers: dict[str, str] = {}
+    for role, track_ids in by_role.items():
+        energies = [float(sec.get("energy_level", 0)) for sec in sections if role in sec["active_track_roles"]]
+        low, high = (min(energies), max(energies)) if energies else (0.0, 0.0)
+        for k, track_id in enumerate(track_ids):
+            threshold = low + (high - low) * k / len(track_ids)
+            plays[track_id] = {sec["name"] for sec in sections if role in sec["active_track_roles"]
+                               and float(sec.get("energy_level", 0)) >= threshold - 0.00001}
+            layers[track_id] = "%d of %d" % (k + 1, len(track_ids))
+    return plays, layers
+
+
 def _stem_boundaries(sections: list[dict[str, Any]], chosen: dict[str, Any], copies: list[dict[str, Any]],
                      lengths: dict[str, float], tracks: dict[str, dict[str, Any]], start_beat: float,
-                     only_section: str | None) -> list[dict[str, Any]]:
+                     only_section: str | None, plays: dict[str, set[str]]) -> list[dict[str, Any]]:
     """Every point where a stem enters or exits, with the actual clip edge Live will get.
 
     Raises if any placed clip edge is not on a bar line: a mid-bar cut is never acceptable.
@@ -1017,8 +1048,8 @@ def _stem_boundaries(sections: list[dict[str, Any]], chosen: dict[str, Any], cop
         if only_section is not None and only_section not in (before["name"], after["name"]):
             continue
         beat = start_beat + 4.0 * after["start_bar"]
-        for role, (track_id, _clip, length) in chosen.items():
-            was, now = role in before["active_track_roles"], role in after["active_track_roles"]
+        for track_id, (role, _clip, length) in chosen.items():
+            was, now = before["name"] in plays[track_id], after["name"] in plays[track_id]
             if was == now:
                 continue
             mine = [c for c in copies if c["source_track_id"] == track_id]
@@ -1052,15 +1083,18 @@ def marker_name(section: dict[str, Any]) -> str:
 
 
 def _create_selected_arrangement_plan(payload: dict[str, Any]) -> dict[str, Any]:
-    """Copy confirmed, fingerprinted source clips into the selected bar map."""
+    """Copy confirmed, fingerprinted source clips into the selected bar map.
+
+    Sources are Arrangement clips (``source_start_beat``) or, for a Set that has only Session
+    loops, Session clips (``source_scene_index``); both are placed into the Arrangement."""
     base_keys = {"selection_id", "snapshot_name", "approved", "sources"}
     if set(payload) not in (base_keys, base_keys | {"section"}) or payload.get("approved") is not True:
         raise ValueError("Choose source clips and approve the arrangement plan")
     only_section = payload.get("section")
     if only_section is not None and (not isinstance(only_section, str) or not only_section.strip()):
         raise ValueError("section must be a section name")
-    if not isinstance(payload["sources"], list) or not 1 <= len(payload["sources"]) <= 8:
-        raise ValueError("Choose between one and eight source clips")
+    if not isinstance(payload["sources"], list) or not 1 <= len(payload["sources"]) <= MAX_SCAFFOLD_SOURCES:
+        raise ValueError("Choose between one and %d source clips" % MAX_SCAFFOLD_SOURCES)
     with LOCK:
         selection = _read(ROOT / "arrangement-selections" / (str(payload["selection_id"]) + ".json"))
         if not selection or selection.get("status") != "Selected":
@@ -1074,12 +1108,26 @@ def _create_selected_arrangement_plan(payload: dict[str, Any]) -> dict[str, Any]
         roles = {role for section in variant["sections"] for role in section["active_track_roles"]}
         tracks = _tracks_by_id(project)
         chosen = {}
+        from_session = all(isinstance(source, dict) and "source_scene_index" in source for source in payload["sources"])
         for source in payload["sources"]:
-            if not isinstance(source, dict) or set(source) != {"role", "track_id", "source_start_beat"}:
+            expected_keys = {"role", "track_id", "source_scene_index" if from_session else "source_start_beat"}
+            if not isinstance(source, dict) or set(source) != expected_keys:
                 raise ValueError("Invalid source clip choice")
             role, track_id = source["role"], source["track_id"]
-            if role not in roles or role in chosen or track_id not in tracks:
-                raise ValueError("Choose one valid source clip per role")
+            if role not in roles or track_id in chosen or track_id not in tracks:
+                raise ValueError("Choose one valid source clip per track")
+            if from_session:
+                index = source["source_scene_index"]
+                matches = [clip for clip in tracks[track_id].get("session_clips", []) if clip.get("scene_index") == index] if type(index) is int else []
+                if len(matches) != 1:
+                    raise ValueError("Selected Session clip is missing or unreadable")
+                clip = matches[0]
+                length = float(clip.get("length") or 0)
+                if (not isinstance(clip.get("fingerprint"), str) or len(clip["fingerprint"]) != 64 or
+                        not 4 <= length <= 64 or abs(length / 4 - round(length / 4)) > 0.00001):
+                    raise ValueError("Choose a fingerprinted, whole-bar Session clip of at most 16 bars")
+                chosen[track_id] = (role, clip, length)
+                continue
             start = _finite_number(source["source_start_beat"], "source clip start", 0, 3600)
             matches = [clip for clip in tracks[track_id].get("arrangement_clips", [])
                        if abs(float(clip.get("start_beat", -1)) - start) < 0.00001]
@@ -1091,9 +1139,8 @@ def _create_selected_arrangement_plan(payload: dict[str, Any]) -> dict[str, Any]
                     not 4 <= length <= 64 or abs(length / 4 - round(length / 4)) > 0.00001 or
                     abs(float(clip.get("length", -1)) - length) > 0.00001):
                 raise ValueError("Choose a fingerprinted, whole-bar Arrangement clip of at most 16 bars")
-            chosen[role] = (track_id, clip, length)
-        if len({item[0] for item in chosen.values()}) != len(chosen):
-            raise ValueError("Choose different Live tracks for each arrangement role")
+            chosen[track_id] = (role, clip, length)
+        plays, layers = _layer_sections(variant["sections"], chosen)
         start_beat = float(math.ceil(float(project.get("arrangement_end", 0)) / 64) * 64)
         if only_section is not None:
             match = [sec for sec in variant["sections"] if sec["name"].lower() == only_section.strip().lower()]
@@ -1110,24 +1157,32 @@ def _create_selected_arrangement_plan(payload: dict[str, Any]) -> dict[str, Any]
                 continue
             section_start = start_beat + 4 * section["start_bar"]
             section_end = start_beat + 4 * section["end_bar"]
-            active = [role for role in section["active_track_roles"] if role in chosen]
+            active = [track_id for track_id in chosen if section["name"] in plays[track_id]]
             unfilled: dict[str, int] = {}
             placed_roles = 0
-            for role in active:
-                track_id, clip, length = chosen[role]
+            for track_id in active:
+                role, clip, length = chosen[track_id]
                 cursor = section_start
                 while cursor + length <= section_end + 0.00001:
-                    copies.append({"source_track_id": track_id, "source_start_beat": float(clip["start_beat"]),
-                                   "source_fingerprint": clip["fingerprint"], "destination_beat": cursor})
+                    item = {"source_track_id": track_id, "source_fingerprint": clip["fingerprint"], "destination_beat": cursor}
+                    if from_session:
+                        item["source_scene_index"] = clip["scene_index"]
+                    else:
+                        item["source_start_beat"] = float(clip["start_beat"])
+                    copies.append(item)
                     cursor += length
                 coverage.append({"section": section["name"], "role": role, "track_name": tracks[track_id]["name"],
-                                 "source_name": clip["name"], "source_bar": int(clip["start_beat"] / 4) + 1,
-                                 "destination_bar": int(section_start / 4) + 1, "placed_bars": int((cursor - section_start) / 4)})
+                                 "source_name": clip.get("name"),
+                                 "source_bar": None if from_session else int(clip["start_beat"] / 4) + 1,
+                                 "source_scene": clip["scene_index"] + 1 if from_session else None,
+                                 "destination_bar": int(section_start / 4) + 1, "placed_bars": int((cursor - section_start) / 4),
+                                 "layer": layers[track_id]})
                 if cursor > section_start + 0.00001:
                     placed_roles += 1
                 if cursor < section_end - 0.00001:
-                    unfilled[role] = int((section_end - cursor) / 4)
-                    gaps.append("%s: %s has %d unfilled bars" % (section["name"], role, unfilled[role]))
+                    missing = int((section_end - cursor) / 4)
+                    unfilled[role] = max(unfilled.get(role, 0), missing)
+                    gaps.append("%s: %s (%s) has %d unfilled bars" % (section["name"], role, tracks[track_id]["name"], missing))
             if not active:
                 gaps.append("%s: no chosen source matches its suggested roles" % section["name"])
             section_bars = int(section["end_bar"] - section["start_bar"])
@@ -1140,7 +1195,7 @@ def _create_selected_arrangement_plan(payload: dict[str, Any]) -> dict[str, Any]
             raise ValueError("The chosen clips do not fit %s; choose shorter whole-bar clips" % (
                 "section " + only_section if only_section else "any section"))
         if only_section is not None:
-            lengths = {track_id: length for track_id, _clip, length in chosen.values()}
+            lengths = {track_id: length for track_id, (_role, _clip, length) in chosen.items()}
             for item in copies:
                 span = (item["destination_beat"], item["destination_beat"] + lengths[item["source_track_id"]])
                 busy = [c for c in tracks[item["source_track_id"]].get("arrangement_clips", [])
@@ -1150,13 +1205,14 @@ def _create_selected_arrangement_plan(payload: dict[str, Any]) -> dict[str, Any]
                         only_section, tracks[item["source_track_id"]]["name"]))
         if len(copies) > 400:
             raise ValueError("This draft needs over 400 copies; choose longer source clips")
-        lengths_by_track = {track_id: length for track_id, _clip, length in chosen.values()}
+        lengths_by_track = {track_id: length for track_id, (_role, _clip, length) in chosen.items()}
         actual_end = max(item["destination_beat"] + lengths_by_track[item["source_track_id"]] for item in copies)
-        boundaries = _stem_boundaries(variant["sections"], chosen, copies, lengths_by_track, tracks, start_beat, only_section)
+        boundaries = _stem_boundaries(variant["sections"], chosen, copies, lengths_by_track, tracks, start_beat, only_section, plays)
         locators = [{"time": start_beat + 4 * section["start_bar"], "name": marker_name(section)}
                     for section in variant["sections"]]
         # Native cues are created only if this Live build proved exact position/name readback (probe_locators).
-        locators_created = bool((project.get("template_capabilities") or {}).get("arrangement_locator_readback"))
+        # The Session-to-Arrangement bridge action has no marker support.
+        locators_created = not from_session and bool((project.get("template_capabilities") or {}).get("arrangement_locator_readback"))
         section_markers = ([locators[[sec["name"] for sec in variant["sections"]].index(only_section)]]
                            if only_section is not None else locators)
         outro_warning = None
@@ -1171,9 +1227,15 @@ def _create_selected_arrangement_plan(payload: dict[str, Any]) -> dict[str, Any]
                              % (math.ceil(float(project.get("arrangement_end", 0)) / 4), math.ceil(actual_end / 4), MAX_ARRANGEMENT_BEAT // 4))
         # The bridge checks the Set's overall end afterwards; a middle section must not lower it.
         expected_end = max(actual_end, float(project.get("arrangement_end", 0))) if only_section is not None else actual_end
-        action = {"type": "apply_arrangement_copies", "copies": copies, "expected_end_beat": expected_end,
-                  "locators": section_markers if locators_created else [], "locator_definitions": locators,
-                  "locators_deferred": not locators_created}
+        if from_session:
+            action = {"type": "apply_session_to_arrangement_copies", "expected_end_beat": expected_end,
+                      "copies": [{"track_id": item["source_track_id"], "source_scene_index": item["source_scene_index"],
+                                  "source_fingerprint": item["source_fingerprint"], "destination_beat": item["destination_beat"]}
+                                 for item in copies]}
+        else:
+            action = {"type": "apply_arrangement_copies", "copies": copies, "expected_end_beat": expected_end,
+                      "locators": section_markers if locators_created else [], "locator_definitions": locators,
+                      "locators_deferred": not locators_created}
         plan = create_plan({"intent": "%s · %s in Live" % (selection.get("genre", "Arrangement"), variant["name"]),
                             "snapshot_name": payload["snapshot_name"], "actions": [action]})
         plan.update(arrangement_selection_id=selection["id"], variant=copy.deepcopy(variant),
@@ -1181,7 +1243,9 @@ def _create_selected_arrangement_plan(payload: dict[str, Any]) -> dict[str, Any]
                     planned_end_bar=int(start_beat / 4) + variant["total_bars"],
                     actual_end_bar=int(actual_end / 4), source_coverage=coverage,
                     gaps=gaps, section_gaps=section_gaps, locator_definitions=locators, locators_deferred=not locators_created,
-                    warnings=["Existing Arrangement clips and locators stay in place. New copies begin after the current material.",
+                    source_view="session" if from_session else "arrangement",
+                    warnings=["Existing Arrangement clips and locators stay in place. New copies begin after the current material."]
+                             + (["Your Session loops are copied into the Arrangement; the Session clips stay where they are."] if from_session else []) + [
                               ("Section markers will be created in Live and removed again by Undo." if locators_created else
                                "Section markers are shown here but are not created in Live (this Live build has not proven marker readback)."),
                               "Arrangement track automation is not copied or extended by this scaffold."],
@@ -2194,6 +2258,15 @@ def _skipped_sources_note(skipped: list[dict[str, Any]]) -> str:
     return "%d clips were not used as sources: %s." % (len(skipped), parts)
 
 
+def _within_source_limit(sources: list[dict[str, Any]], tracks: dict[str, dict[str, Any]],
+                         skipped: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The first MAX_SCAFFOLD_SOURCES sources, in Set order; the rest are reported as skipped."""
+    for source in sources[MAX_SCAFFOLD_SOURCES:]:
+        skipped.append({"track_name": tracks[source["track_id"]].get("name") or source["track_id"], "clip_name": None,
+                        "start_bar": None, "reason": "source_limit"})
+    return sources[:MAX_SCAFFOLD_SOURCES]
+
+
 def create_scaffold_plan(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """1-click subtractive arrangement scaffolding for the Arranger M4L Companion."""
     payload = dict(payload or {})
@@ -2266,7 +2339,6 @@ def create_scaffold_plan(payload: dict[str, Any] | None = None) -> dict[str, Any
 
         sources = []
         assigned_tracks = set()
-        roles_used: set[str] = set()
         skipped: list[dict[str, Any]] = []
         for track_id, track in tracks.items():
             arr_clips = track.get("arrangement_clips") or []
@@ -2290,9 +2362,6 @@ def create_scaffold_plan(payload: dict[str, Any] | None = None) -> dict[str, Any
                 continue
             if role not in needed_roles or track_id in assigned_tracks:
                 continue
-            if role in roles_used:   # one source per role; a second track of the same role is reported, not used
-                _note_skipped(skipped, track, arr_clips, "role_already_used")
-                continue
 
             valid_clips = []
             for c in arr_clips:
@@ -2311,10 +2380,12 @@ def create_scaffold_plan(payload: dict[str, Any] | None = None) -> dict[str, Any
                     "source_start_beat": float(chosen_clip["start_beat"]),
                 })
                 assigned_tracks.add(track_id)
-                roles_used.add(role)
 
         if not sources:
             session_sources = []
+            to_scenes = payload.get("view") == "session"   # otherwise Session loops are placed into the Arrangement
+            session_skipped: list[dict[str, Any]] = []
+            session_roles: set[str] = set()
             for track_id, track in tracks.items():
                 if track.get("is_group"):
                     continue
@@ -2326,31 +2397,66 @@ def create_scaffold_plan(payload: dict[str, Any] | None = None) -> dict[str, Any
                     role = suggested
                 if not role or role not in needed_roles or track_id in assigned_tracks:
                     continue
-                for c in (track.get("session_clips") or []):
-                    fp = c.get("fingerprint")
-                    s_idx = c.get("scene_index")
-                    length = float(c.get("length", 0.0))
-                    if isinstance(fp, str) and len(fp) == 64 and length >= 4.0 and type(s_idx) is int:
-                        session_sources.append({
-                            "track_id": track_id,
-                            "role": role,
-                            "source_scene_index": s_idx,
-                        })
-                        assigned_tracks.add(track_id)
-                        break
-            if session_sources and section:
+                readable = [c for c in (track.get("session_clips") or [])
+                            if isinstance(c.get("fingerprint"), str) and len(c["fingerprint"]) == 64
+                            and type(c.get("scene_index")) is int]
+                if to_scenes:
+                    usable = [c for c in readable if float(c.get("length", 0.0)) >= 4.0]
+                else:   # Arrangement copies are tiled, so the loop must be 1–16 whole bars
+                    usable = [c for c in readable if 4.0 <= float(c.get("length", 0.0)) <= 64.0
+                              and abs(float(c["length"]) / 4 - round(float(c["length"]) / 4)) < 0.00001]
+                    if readable and not usable:   # only worth reporting when the track has no loop that fits
+                        c = readable[0]
+                        session_skipped.append({"track_name": track.get("name") or track_id, "clip_name": c.get("name"),
+                                                "start_bar": None,
+                                                "reason": "longer_than_16_bars" if float(c.get("length", 0.0)) > 64.0 else "not_whole_bar"})
+                if not usable:
+                    continue
+                if to_scenes and role in session_roles:   # a scene plan takes one source per role; the rest are reported
+                    session_skipped.append({"track_name": track.get("name") or track_id, "clip_name": usable[0].get("name"),
+                                            "start_bar": None, "reason": "role_already_used"})
+                    continue
+                session_sources.append({
+                    "track_id": track_id,
+                    "role": role,
+                    "source_scene_index": usable[0]["scene_index"],
+                })
+                assigned_tracks.add(track_id)
+                session_roles.add(role)
+            if session_sources and section and to_scenes:
                 raise ValueError("Scaffolding one section needs Arrangement clips as sources")
+            if session_sources and not to_scenes:
+                try:
+                    plan = _create_selected_arrangement_plan({
+                        "selection_id": selection["id"],
+                        "snapshot_name": snapshot_name,
+                        "approved": True,
+                        "sources": _within_source_limit(session_sources, tracks, session_skipped),
+                        **scoped,
+                    })
+                except ValueError as exc:
+                    raise ScaffoldPlanError(str(exc), session_skipped) from exc
+                if session_skipped:
+                    plan["skipped_sources"] = session_skipped
+                    plan["warnings"].append(_skipped_sources_note(session_skipped))
+                    _write(ROOT / "plans" / (plan["id"] + ".json"), plan)
+                return plan
             if session_sources:
-                return _create_session_scene_plan({
+                plan = _create_session_scene_plan({
                     "selection_id": selection["id"],
                     "snapshot_name": snapshot_name,
                     "approved": True,
                     "sources": session_sources,
                     "view": "session",
                 })
+                if session_skipped:
+                    plan["skipped_sources"] = session_skipped
+                    plan["warnings"].append(_skipped_sources_note(session_skipped))
+                    _write(ROOT / "plans" / (plan["id"] + ".json"), plan)
+                return plan
             raise ScaffoldPlanError("No fingerprinted 4-bar to 16-bar source loops found in the Set to scaffold from", skipped)
 
-        sources = sources[:8]
+        sources = _within_source_limit(sources, tracks, skipped)
         try:
             plan = _create_selected_arrangement_plan({
                 "selection_id": selection["id"],

@@ -136,10 +136,11 @@ class StemBoundaryTests(unittest.TestCase):
     def test_a_clip_edge_inside_a_bar_is_refused(self) -> None:
         sections = [{'name': 'A', 'start_bar': 0, 'end_bar': 4, 'active_track_roles': ['Kick']},
                     {'name': 'B', 'start_bar': 4, 'end_bar': 8, 'active_track_roles': []}]
-        chosen = {'Kick': ('t', {}, 10.0)}
+        chosen = {'t': ('Kick', {}, 10.0)}
         copies = [{'source_track_id': 't', 'destination_beat': 0.0}]
         with self.assertRaisesRegex(ValueError, 'inside a bar'):
-            production._stem_boundaries(sections, chosen, copies, {'t': 10.0}, {'t': {'name': 'T', 'type': 'audio'}}, 0.0, None)
+            production._stem_boundaries(sections, chosen, copies, {'t': 10.0}, {'t': {'name': 'T', 'type': 'audio'}}, 0.0, None,
+                                        {'t': {'A'}})
 
 
 if __name__ == '__main__':

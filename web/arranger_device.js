@@ -243,6 +243,16 @@
       || 'Ignore / Unknown';
   }
 
+  // Every stem's role exactly as the list shows it, so the scaffold uses what the producer sees
+  // (the server's own name guess can differ from the device's).
+  function shownRoles() {
+    const roles = { ...userStemOverrides };
+    ((analysis && analysis.tracks) || []).forEach(track => {
+      if (track && track.id && !(track.id in roles)) roles[track.id] = resolveRole(track);
+    });
+    return roles;
+  }
+
   async function refreshRoleMemory() {
     try {
       roleMemoryInfo = await api('/api/production/role-memory');
@@ -302,12 +312,21 @@
       const suggested = track.suggested_role || inferRoleFromName(track.name);
       const role = resolveRole(track);
 
-      // Confidence
+      // Confidence: your own choices are certain; a guess is as sure as the server says.
+      const guessed = 'role_confidence' in track ? Number(track.role_confidence) || 0 : (suggested ? 0.6 : 0);
       let confClass = 'conf-med';
+      let why;
       if (override || confirmed || (remembered && !remembered.needs_review)) {
         confClass = 'conf-high';
-      } else if (!suggested && !remembered) {
+        why = override ? 'You chose this role' : confirmed ? 'Confirmed role' : 'Remembered for this Set';
+      } else if (remembered) {
+        why = 'Remembered by position — check this role';
+      } else if (!suggested) {
         confClass = 'conf-low';
+        why = 'No clue in the track, clip or device names — pick a role';
+      } else {
+        confClass = guessed >= 0.85 ? 'conf-high' : guessed >= 0.6 ? 'conf-med' : 'conf-low';
+        why = `Guess ${Math.round(guessed * 100)}% · ${(track.role_reason || 'from the track name').replace(/^\w/, c => c.toLowerCase())}`;
       }
       const memoryNote = remembered && !override
         ? (remembered.needs_review ? 'Remembered by position — check this role'
@@ -330,9 +349,10 @@
       row.className = 'stem-row';
       row.innerHTML = `
         <div class="stem-track-info" title="${escapeHtml(track.name)} (${clipInfo})${memoryNote ? ' — ' + escapeHtml(memoryNote) : ''}">
-          <span class="confidence-indicator ${confClass}" title="Role confidence"></span>
+          <span class="confidence-indicator ${confClass}" title="${escapeHtml(why)}"></span>
           <span class="stem-track-name">${escapeHtml(track.name)}</span>
           <span class="stem-source-badge">${clipInfo}</span>
+          <span class="stem-role-reason">${escapeHtml(why)}</span>
         </div>
         <select class="stem-role-select" data-track-id="${track.id}">
           ${ALL_ROLES.map(r => `<option value="${r}" ${r === role ? 'selected' : ''}>${r}</option>`).join('')}
@@ -790,7 +810,7 @@
         genre: selectedGenre,
         variant_id: selectedVariant,
         snapshot_name: `Before ${selectedGenre} ${selectedVariant} Scaffold`,
-        roles: userStemOverrides,
+        roles: shownRoles(),
         ...(selectedScope ? { section: selectedScope } : {})
       };
 
