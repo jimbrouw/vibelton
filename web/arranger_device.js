@@ -65,6 +65,8 @@
   };
   let genreCatalogue = FALLBACK_CATALOGUE;
   let lastLabelTempo = null;
+  let selectionSeenAt = 0;         // server time of the newest shared genre/variant choice this view has applied
+  let selectionPosting = false;
 
   // --- DOM Elements ---
   const elConnectionPill = document.getElementById('connectionPill');
@@ -439,6 +441,47 @@
     if (statStructure) {
       statStructure.textContent = `${selectedGenre} (${curr ? curr.name : 'Club version'})`;
     }
+  }
+
+  // The docked device and the pop-out are separate pages; the server keeps the one genre/variant
+  // choice both show. Each view sends its own changes and picks up the other's on the heartbeat.
+  async function shareSelection() {
+    selectionPosting = true;
+    try {
+      const saved = await api('/api/production/arranger-selection', 'POST', { genre: selectedGenre, variant_id: selectedVariant });
+      selectionSeenAt = Math.max(selectionSeenAt, Number(saved.updated_at) || 0);
+    } catch (err) {
+      console.warn('Could not share the genre choice with the other Arranger view', err);
+    } finally {
+      selectionPosting = false;
+    }
+  }
+
+  // Returns true when it switched this view to a choice made in the other view.
+  async function syncSelection() {
+    if (selectionPosting || isBusy) return false;
+    let shared;
+    try {
+      shared = await api('/api/production/arranger-selection');
+    } catch (err) {
+      return false;
+    }
+    if (selectionPosting || !shared.genre || !(Number(shared.updated_at) > selectionSeenAt)) return false;
+    const entry = genreEntry(shared.genre);
+    // Not in this view's genre list yet (it is still loading): leave it unseen and try again next heartbeat.
+    if (!entry || !entry.variants.some(v => v.id === shared.variant_id)) return false;
+    selectionSeenAt = Number(shared.updated_at);
+    if (shared.genre === selectedGenre && shared.variant_id === selectedVariant) return false;
+    const genreChanged = shared.genre !== selectedGenre;
+    selectedGenre = shared.genre;
+    selectedVariant = shared.variant_id;
+    elGenreSelect.value = selectedGenre;
+    if (genreChanged) genreOptions = null;
+    populateVariantsDropdown();
+    drawEnergyCurve();
+    if (genreChanged) loadGenreOptions();
+    refreshScaffoldedSections();
+    return true;
   }
 
   async function loadGenreCatalogue() {
@@ -1179,6 +1222,7 @@
       const statusRes = await api('/api/status');
       setServerOffline(false);
       liveState = statusRes.state || {};
+      await syncSelection();
       
       const isConnected = Boolean(liveState.connected);
       const tempo = Math.round(Number(liveState.tempo || 120));
@@ -1248,12 +1292,15 @@
     drawEnergyCurve();
     loadGenreOptions();
     refreshScaffoldedSections();
+    shareSelection();
   });
 
   elVariantSelect.addEventListener('change', (e) => {
     selectedVariant = e.target.value;
     updateScaffoldButtonLabel();
     drawEnergyCurve();
+    refreshScaffoldedSections();
+    shareSelection();
   });
 
   elWorkingCopyCheck.addEventListener('change', (e) => {
@@ -1368,7 +1415,9 @@
   renderGenreSelect();
   populateVariantsDropdown();
   refreshAllData();
-  loadGenreCatalogue().then(loadGenreOptions);
+  loadGenreCatalogue()
+    .then(syncSelection)
+    .then(switched => { if (!switched) loadGenreOptions(); });
 
   refreshVersions();
   setInterval(refreshVersions, 30000);

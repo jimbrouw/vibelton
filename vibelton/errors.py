@@ -36,6 +36,9 @@ CATALOGUE: list[tuple[str, str, str, str, str]] = [
      "No stem has a loop short enough to fill the final section without being cut.", "Use a shorter loop for one stem, or scaffold the other sections one at a time."),
     ("bad_source_clip", r"Choose a fingerprinted, whole-bar", "That clip can't be copied",
      "Only whole-bar clips up to 16 bars, placed exactly once (not looped or stretched), can be used.", "Trim or consolidate the clip in Live."),
+    ("arrangement_full", r"The Arrangement is full", "The Arrangement is full",
+     "", "Each full scaffold is placed after everything already in the Arrangement. Undo earlier scaffolds, "
+     "or delete old copies at the end of the Arrangement in Live, then scaffold again."),
     ("loops_too_long", r"do not fit", "Loops too long for that section", "The loops you have are longer than the section.", "Pick a longer section or a shorter loop."),
     ("section_occupied", r"already has clips", "That section already has clips", "", "Undo that section first, then scaffold it again."),
     ("unknown_section", r"Unknown section", "Unknown section", "", "Choose one of the listed sections."),

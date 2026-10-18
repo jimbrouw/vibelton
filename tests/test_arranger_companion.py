@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from vibelton import errors
 from vibelton import production
 from vibelton import queue
 
@@ -180,6 +181,7 @@ class ArrangerCompanionTests(unittest.TestCase):
         # The genre list comes from the server; the built-in list is only a fallback.
         self.assertIn('/api/production/genres', js)
         self.assertNotIn('GENRE_VARIANTS_MAP', js)
+        self.assertIn('/api/production/arranger-selection', js)
         self.assertIn('select-menu-group', css)
         self.assertIn('executeRollback', js)
         self.assertIn('drawEnergyCurve', js)
@@ -241,6 +243,37 @@ class ArrangerCompanionTests(unittest.TestCase):
         plan = production.create_scaffold_plan({'genre': 'House', 'variant_id': 'club-version'})
         with self.assertRaisesRegex(ValueError, 'working copy'):
             production.execute({'plan_id': plan['id'], 'working_copy_confirmed': False})
+
+    def test_new_genres_scaffold_into_live_plans(self) -> None:
+        for genre, variant in (('Boom Bap', 'boombap-two-verses'), ('Grime', 'grime-instrumental'),
+                               ('Hyperpop', 'hyperpop-single'), ('Trance', 'trance-epic-breakdown')):
+            with self.subTest(genre=genre):
+                plan = production.create_scaffold_plan({'genre': genre, 'variant_id': variant})
+                self.assertEqual('apply_arrangement_copies', plan['actions'][0]['type'])
+                self.assertTrue(plan['actions'][0]['copies'])
+
+    def test_full_arrangement_is_reported_in_plain_language(self) -> None:
+        # Earlier scaffolds stacked to bar 872; a new one would pass the 900-bar placement limit.
+        self.state['arrangement_end'] = self.state['production']['arrangement_end'] = 3488.0
+        with self.assertRaises(ValueError) as caught:
+            production.create_scaffold_plan({'genre': 'Boom Bap', 'variant_id': 'boombap-long-verses'})
+        self.assertIn('bar 872', str(caught.exception))
+        explanation = errors.explain(str(caught.exception))
+        self.assertEqual('arrangement_full', explanation['code'])
+        self.assertIn('Undo earlier scaffolds', explanation['next_step'])
+
+    def test_docked_and_popout_share_one_selection(self) -> None:
+        self.assertIsNone(production.arranger_selection()['genre'])
+        first = production.save_arranger_selection({'genre': 'Boom Bap', 'variant_id': 'boombap-long-verses'})
+        self.assertEqual({'genre': 'Boom Bap', 'variant_id': 'boombap-long-verses'},
+                         {k: production.arranger_selection()[k] for k in ('genre', 'variant_id')})
+        second = production.save_arranger_selection({'genre': 'House', 'variant_id': 'club-version'})
+        self.assertGreater(second['updated_at'], first['updated_at'])
+        self.assertEqual('House', production.arranger_selection()['genre'])
+        with self.assertRaises(ValueError):
+            production.save_arranger_selection({'genre': 'House', 'variant_id': 'boombap-long-verses'})
+        with self.assertRaises(ValueError):
+            production.save_arranger_selection({'genre': 'Polka', 'variant_id': 'club-version'})
 
 
 if __name__ == '__main__':

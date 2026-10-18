@@ -30,6 +30,8 @@ from . import working_copy
 
 ROOT = Path.home() / ".vibelton" / "production"
 LOCK = threading.RLock()
+# Latest Arrangement beat Vibelton will write to (900 bars of 4/4).
+MAX_ARRANGEMENT_BEAT = 3600.0
 PROJECT_ANALYSIS_SCHEMA = "vibelton.project-analysis/v1"
 PLAN_SCHEMA = "vibelton.production-plan/v1"
 SNAPSHOT_SCHEMA = "vibelton.production-snapshot/v1"
@@ -170,7 +172,7 @@ def _validate_action(action: Any, tracks: dict[str, dict[str, Any]]) -> dict[str
         required = {"type", "copies", "locators", "locator_definitions", "locators_deferred", "expected_end_beat"}
         if set(action) != required:
             raise ValueError("Invalid arrangement-copy action")
-        end = _finite_number(action["expected_end_beat"], "expected arrangement end", 0.001, 3600.0)
+        end = _finite_number(action["expected_end_beat"], "expected arrangement end", 0.001, MAX_ARRANGEMENT_BEAT)
         if not isinstance(action["copies"], list) or not action["copies"]:
             raise ValueError("Arrangement copy action requires copies")
         copies = []
@@ -567,6 +569,32 @@ def _role_memory_entries(set_path: str | None) -> list[dict[str, Any]]:
     if not set_path:
         return []
     return (_read(_role_memory_path(set_path)) or {}).get("entries", [])
+
+
+def arranger_selection() -> dict[str, Any]:
+    """The genre and variant last chosen in any Arranger view, so the docked device and pop-out agree."""
+    stored = _read(ROOT / "arranger-selection.json") or {}
+    genre, variant_id = stored.get("genre"), stored.get("variant_id")
+    if genre not in arrangements.SUPPORTED_GENRES or variant_id not in arrangements.GENRE_VARIANTS[genre]:
+        return {"genre": None, "variant_id": None, "updated_at": 0}
+    return {"genre": genre, "variant_id": variant_id, "updated_at": stored.get("updated_at", 0)}
+
+
+def save_arranger_selection(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict) or set(payload) != {"genre", "variant_id"}:
+        raise ValueError("Arranger selection takes genre and variant_id")
+    genre, variant_id = payload["genre"], payload["variant_id"]
+    if genre not in arrangements.SUPPORTED_GENRES:
+        raise ValueError("Choose a supported arrangement genre")
+    if variant_id not in arrangements.GENRE_VARIANTS[genre]:
+        raise ValueError(f"Variant '{variant_id}' is not valid for genre '{genre}'")
+    with LOCK:
+        previous = _read(ROOT / "arranger-selection.json") or {}
+        # Strictly increasing, so a view never mistakes a newer choice for one it has already seen.
+        updated_at = max(time.time(), float(previous.get("updated_at", 0)) + 0.001)
+        selection = {"genre": genre, "variant_id": variant_id, "updated_at": updated_at}
+        _write(ROOT / "arranger-selection.json", selection)
+    return selection
 
 
 def role_memory_status() -> dict[str, Any]:
@@ -1138,6 +1166,9 @@ def _create_selected_arrangement_plan(payload: dict[str, Any]) -> dict[str, Any]
             outro_warning = ("No source loop fits %s without being cut, so it stays empty. The arrangement ends at bar %d."
                              % (final, int(actual_end / 4)))
             gaps.append("%s: no loop short enough to fit" % final)
+        if actual_end > MAX_ARRANGEMENT_BEAT:
+            raise ValueError("The Arrangement is full: the Set already runs to bar %d, and this scaffold would end at bar %d, past Vibelton's %d-bar limit"
+                             % (math.ceil(float(project.get("arrangement_end", 0)) / 4), math.ceil(actual_end / 4), MAX_ARRANGEMENT_BEAT // 4))
         # The bridge checks the Set's overall end afterwards; a middle section must not lower it.
         expected_end = max(actual_end, float(project.get("arrangement_end", 0))) if only_section is not None else actual_end
         action = {"type": "apply_arrangement_copies", "copies": copies, "expected_end_beat": expected_end,

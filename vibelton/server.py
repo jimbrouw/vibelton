@@ -222,6 +222,8 @@ class Handler(BaseHTTPRequestHandler):
                     result = production.overview()
                 elif parsed.path == '/api/production/working-copy':
                     result = production.working_copy_status()
+                elif parsed.path == '/api/production/arranger-selection':
+                    result = production.arranger_selection()
                 elif parsed.path == '/api/production/genres':
                     result = arrangements.genre_catalogue()
                 elif parsed.path == '/api/production/scaffold-sections':
@@ -363,6 +365,7 @@ class Handler(BaseHTTPRequestHandler):
                         'rollback': production.rollback, 'analyse': lambda _payload: production.analyse(),
                         'locator-probe': production.probe_locators,
                         'role-memory': production.save_role_memory,
+                        'arranger-selection': production.save_arranger_selection,
                         'arrangement-options': production.create_house_arrangement_options,
                         'arrangement-selection': production.select_house_arrangement,
                         'arrangement-execution-plan': production.create_house_arrangement_execution_plan,
