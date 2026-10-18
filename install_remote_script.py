@@ -19,8 +19,9 @@ def user_library() -> Path:
     return home / "Ableton" / "User Library"
 
 
-def main() -> None:
-    target_root = user_library() / "Remote Scripts"
+def install(library: Path) -> list[Path]:
+    """Copy the Remote Script into ``library``/Remote Scripts and return the installed folders."""
+    target_root = library / "Remote Scripts"
     target_root.mkdir(parents=True, exist_ok=True)
 
     installed = []
@@ -33,7 +34,11 @@ def main() -> None:
             shutil.rmtree(target)
         shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         installed.append(target)
+    return installed
 
+
+def main() -> None:
+    installed = install(user_library())
     print("Installed Ableton remote script:")
     for target in installed:
         print(f"- {target}")

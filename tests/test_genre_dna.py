@@ -7,11 +7,13 @@ from vibelton.genre_dna import (
     CURATED_GENRES,
     GENRE_REGISTRY,
     GROOVE_TEMPLATES,
+    RESOLVED_GENRE_REGISTRY,
     GrooveProfile,
     build_curated_prompt_context,
     detect_style_from_text,
     find_curated_genres_by_vibe,
 )
+from vibelton.planner import expanded_song_sketch_plan
 
 
 class GenreDNATest(unittest.TestCase):
@@ -26,7 +28,18 @@ class GenreDNATest(unittest.TestCase):
                 self.assertGreaterEqual(len(dna.groove_profile.push_pull_per_subdivision), 4)
 
     def test_required_groove_templates_exist(self) -> None:
-        self.assertTrue({"mpc_58", "mpc_62", "dnb_tight", "ukg_shuffle", "dembow", "trap_triplet"}.issubset(GROOVE_TEMPLATES))
+        self.assertTrue(
+            {
+                "mpc_58",
+                "mpc_62",
+                "dnb_tight",
+                "ukg_shuffle",
+                "dembow",
+                "trap_triplet",
+                "laid_back",
+                "push",
+            }.issubset(GROOVE_TEMPLATES)
+        )
 
     def test_curated_genre_prompt_layer_covers_phase_one_genres(self) -> None:
         self.assertEqual(
@@ -36,9 +49,11 @@ class GenreDNATest(unittest.TestCase):
                 "drum n bass",
                 "dubstep",
                 "grime",
+                "deep_house",
                 "house",
                 "jungle",
                 "techno",
+                "tech_house",
                 "trap",
                 "uk garage",
             },
@@ -53,6 +68,57 @@ class GenreDNATest(unittest.TestCase):
         matches = find_curated_genres_by_vibe(["skippy", "soulful"])
         self.assertTrue(matches)
         self.assertEqual("UK Garage", matches[0].name)
+
+    def test_deep_house_bpm_range(self) -> None:
+        self.assertEqual((120, 124), CURATED_GENRES["deep_house"].bpm_range)
+
+    def test_tech_house_bpm_range(self) -> None:
+        self.assertEqual((127, 132), CURATED_GENRES["tech_house"].bpm_range)
+
+    def test_kick_pattern_divergence(self) -> None:
+        self.assertNotEqual(CURATED_GENRES["deep_house"].kick_pattern, CURATED_GENRES["tech_house"].kick_pattern)
+
+    def test_bass_list_extended_by_parent(self) -> None:
+        self.assertGreaterEqual(len(RESOLVED_GENRE_REGISTRY["deep_house"].bass_patterns), 5)
+
+    def test_detect_style_deep_house(self) -> None:
+        self.assertEqual("deep_house", detect_style_from_text("Create a deep house track"))
+
+    def test_detect_style_tech_house(self) -> None:
+        self.assertEqual("tech_house", detect_style_from_text("Create a tech house track"))
+
+    def test_detects_16_house_subgenres_for_sound_selection(self) -> None:
+        expected = {
+            "acid house": "acid_house",
+            "ambient house": "ambient_house",
+            "bass house": "bass_house",
+            "chicago house": "chicago_house",
+            "deep house": "deep_house",
+            "disco house": "disco_house",
+            "electro house": "electro_house",
+            "french house": "french_house",
+            "funky house": "funky_house",
+            "garage house": "garage_house",
+            "g-house": "g_house",
+            "minimal house": "minimal_house",
+            "progressive house": "progressive_house",
+            "tech house": "tech_house",
+            "tribal house": "tribal_house",
+            "tropical house": "tropical_house",
+        }
+        for phrase, style_id in expected.items():
+            with self.subTest(phrase=phrase):
+                self.assertEqual(style_id, detect_style_from_text(f"Create a {phrase} song sketch"))
+
+    def test_deep_house_plan_emits_set_tempo_in_range(self) -> None:
+        plan = expanded_song_sketch_plan(message="Create a deep house track")
+        tempo_action = next(action for action in plan["actions"] if action.get("type") == "set_tempo")
+        self.assertIn(tempo_action["bpm"], range(120, 125))
+
+    def test_tech_house_plan_emits_set_tempo_in_range(self) -> None:
+        plan = expanded_song_sketch_plan(message="Create a tech house track")
+        tempo_action = next(action for action in plan["actions"] if action.get("type") == "set_tempo")
+        self.assertIn(tempo_action["bpm"], range(127, 133))
 
     def test_curated_only_genres_do_not_fall_back_to_house(self) -> None:
         self.assertEqual("grime", detect_style_from_text("Make a sparse dark 140 grime riddim"))

@@ -1,0 +1,114 @@
+{
+  "description": "Warped audio clip recorded at 100 BPM in a 124 BPM Set (length is in beats).",
+  "expect": {
+    "warped_track": "hats",
+    "loop_beats": 32
+  },
+  "production": {
+    "schema_version": "vibelton.production-project-state/v1",
+    "tempo": 124.0,
+    "metre": [
+      4,
+      4
+    ],
+    "set_path": "/Sets/edge vibelton-working-copy.als",
+    "arrangement_readable": true,
+    "arrangement_end": 64.0,
+    "locators": [],
+    "tracks": [
+      {
+        "id": "kick",
+        "name": "1-Kick",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Kick",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      },
+      {
+        "id": "bass",
+        "name": "2-Bass",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Bass",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      },
+      {
+        "id": "hats",
+        "name": "3-Hats",
+        "type": "audio",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Break 100bpm",
+            "start_beat": 0.0,
+            "end_beat": 32.0,
+            "length": 32.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+            "is_audio": true,
+            "warping": true,
+            "original_tempo": 100.0
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      }
+    ]
+  }
+}

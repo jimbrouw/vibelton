@@ -1,0 +1,13 @@
+{
+  "fixture": "disposable Live Set dry-run",
+  "tempo": 124.0,
+  "metre": [4, 4],
+  "existing_material": {
+    "track_role": "Kick",
+    "clip_name": "House loop",
+    "start_time": 0.0,
+    "length": 64.0,
+    "bar_count": 16
+  },
+  "assertion": "Planning reads this loop only. It must not copy, move, mute, extend, or create clips."
+}

@@ -888,6 +888,7 @@ const finderDefaults = {
 
 let finderSelections = { ...finderDefaults };
 let finderCustomValues = Object.fromEntries(songFinderGroups.map((group) => [group.id, ""]));
+const houseSubgenreCards = window.HOUSE_SUBGENRE_CARDS || [];
 
 const form = document.querySelector("#composer");
 const prompt = document.querySelector("#prompt");
@@ -910,9 +911,13 @@ const clearPrompt = document.querySelector("#clearPrompt");
 const copyPrompt = document.querySelector("#copyPrompt");
 const makeSongPrompt = document.querySelector("#makeSongPrompt");
 
-let activeTab = activeLibrary[0].id;
-let currentMode = "inspiration"; // inspiration, songmaker, or finisher
+let activeTab = defaultTabForLibrary(activeLibrary);
+let currentMode = "production"; // inspiration, songmaker, or finisher
 let lastSentPrompt = "";
+
+function defaultTabForLibrary(library) {
+  return library.some((category) => category.id === "genres") ? "genres" : library[0].id;
+}
 
 // --- VST scanning state ---
 let scannedVstPlugins = [];
@@ -1122,6 +1127,15 @@ modeToggle.addEventListener("click", (event) => {
   if (!button) return;
   const newMode = button.dataset.mode;
   if (newMode === currentMode) return;
+  if (newMode === "production") {
+    currentMode = newMode;
+    document.body.classList.remove("mode-finisher", "mode-songmaker", "mode-composition", "mode-production");
+    document.body.classList.add("mode-production");
+    document.querySelector("#compositionLab").hidden = true;
+    modeToggle.querySelectorAll("button").forEach(b => b.classList.toggle("active", b === button));
+    window.dispatchEvent(new Event("production-open"));
+    return;
+  }
 
   if (newMode === "finisher") {
     const confirmSave = confirm("The Finisher uses destructive subtractive strategies. Please save a copy of your Live Set (File -> Save a Copy) before proceeding. Have you saved a copy?");
@@ -1129,7 +1143,15 @@ modeToggle.addEventListener("click", (event) => {
   }
 
   // Remove all mode classes
-  document.body.classList.remove("mode-finisher", "mode-songmaker");
+  document.body.classList.remove("mode-finisher", "mode-songmaker", "mode-composition", "mode-production");
+  document.querySelector('#compositionLab').hidden = newMode !== 'composition';
+  if (newMode === 'composition') {
+    currentMode = newMode;
+    document.body.classList.add('mode-composition');
+    modeToggle.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === button));
+    window.dispatchEvent(new Event('composition-open'));
+    return;
+  }
 
   if (newMode === "finisher") {
     document.body.classList.add("mode-finisher");
@@ -1146,7 +1168,7 @@ modeToggle.addEventListener("click", (event) => {
   button.classList.add("active");
 
   if (newMode !== "songmaker") {
-    activeTab = activeLibrary[0].id;
+    activeTab = defaultTabForLibrary(activeLibrary);
   }
   renderTabs();
   renderPromptGrid();
@@ -1169,6 +1191,13 @@ search.addEventListener("input", renderPromptGrid);
 });
 
 promptGrid.addEventListener("click", (event) => {
+  const genreCard = event.target.closest("[data-genre-prompt]");
+  if (genreCard) {
+    prompt.value = customizePrompt(genreCard.dataset.genrePrompt);
+    prompt.focus();
+    return;
+  }
+
   const finderChip = event.target.closest("[data-finder-chip]");
   if (finderChip) {
     finderSelections[finderChip.dataset.group] = finderChip.dataset.value;
@@ -1251,7 +1280,11 @@ form.addEventListener("submit", async (event) => {
 function renderTabs() {
   tabs.innerHTML = "";
   if (currentMode === "songmaker") return;
-  activeLibrary.forEach((category) => {
+  const orderedLibrary = [
+    ...activeLibrary.filter((category) => category.id === "genres"),
+    ...activeLibrary.filter((category) => category.id !== "genres"),
+  ];
+  orderedLibrary.forEach((category) => {
     const button = document.createElement("button");
     button.type = "button";
     button.dataset.tab = category.id;
@@ -1284,6 +1317,10 @@ function renderPromptGrid() {
   resultCount.textContent = `${prompts.length} prompt${prompts.length === 1 ? "" : "s"}`;
   promptGrid.innerHTML = "";
 
+  if (category.id === "genres") {
+    renderGenreCards();
+  }
+
   prompts.forEach((item) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -1302,6 +1339,35 @@ function renderPromptGrid() {
     empty.textContent = "No prompts match that search.";
     promptGrid.appendChild(empty);
   }
+}
+
+function renderGenreCards() {
+  const wrapper = document.createElement("section");
+  wrapper.className = "genre-card-panel";
+  const cardMarkup = houseSubgenreCards
+    .map(
+      (card) => `
+        <button class="prompt-button genre-sub-card" type="button" data-genre-prompt="${escapeAttribute(card.prompt)}">
+          <span>${escapeHtml(card.label)}</span>
+          <small>${escapeHtml(card.subline)}</small>
+          <p>${escapeHtml(card.description)}</p>
+        </button>`
+    )
+    .join("");
+  wrapper.innerHTML = `
+    <details class="genre-parent-card">
+      <summary>
+        <span>
+          <strong>House</strong>
+          <small>${houseSubgenreCards.length} detailed sub-genre prompts</small>
+        </span>
+      </summary>
+      <div class="genre-sub-cards">
+        ${cardMarkup}
+      </div>
+    </details>
+  `;
+  promptGrid.appendChild(wrapper);
 }
 
 function renderSongFinder() {
@@ -1450,10 +1516,15 @@ function addMessage(role, text, actions) {
   const paragraph = document.createElement("p");
   paragraph.textContent = text;
   article.appendChild(paragraph);
-  if (actions) {
+  if (actions && actions.length) {
+    const details = document.createElement("details");
+    details.className = "message-tech-details";
+    const summary = document.createElement("summary");
+    summary.textContent = `Queued ${actions.length} action${actions.length === 1 ? "" : "s"} for Ableton (view technical details)`;
     const pre = document.createElement("pre");
     pre.textContent = JSON.stringify(actions, null, 2);
-    article.appendChild(pre);
+    details.append(summary, pre);
+    article.appendChild(details);
   }
   if (role === "assistant") {
     const feedback = document.createElement("div");
@@ -1492,16 +1563,29 @@ async function sendFeedback(rating, reply, container) {
   }
 }
 
+window.vibeltonSwitchMode = function (targetMode) {
+  const btn = modeToggle?.querySelector(`button[data-mode="${targetMode}"]`);
+  if (btn) btn.click();
+};
+
 async function refreshStatus() {
   try {
     const response = await fetch("/api/status");
     const data = await response.json();
     const state = data.state || {};
-    statusBadge.classList.toggle("connected", Boolean(state.connected));
-    statusBadge.querySelector("b").textContent = state.connected ? "Live connected" : "Waiting for Live";
+    const isFresh = Boolean(state.connected) && (Date.now() / 1000 - Number(state.updated_at || 0) < 12);
+    statusBadge.classList.toggle("connected", isFresh);
+    const tempoText = state.tempo ? `${Math.round(Number(state.tempo))} BPM` : "";
+    if (isFresh) {
+      statusBadge.querySelector("b").textContent = tempoText ? `Live connected · ${tempoText}` : "Live connected";
+    } else if (tempoText) {
+      statusBadge.querySelector("b").textContent = `Live offline · Last seen ${tempoText}`;
+    } else {
+      statusBadge.querySelector("b").textContent = "Waiting for Ableton Live";
+    }
     stateList.innerHTML = `
-      <div><dt>Connection</dt><dd>${state.connected ? "Connected" : "Not connected"}</dd></div>
-      <div><dt>Tempo</dt><dd>${state.tempo ? Number(state.tempo).toFixed(1) : "Unknown"}</dd></div>
+      <div><dt>Connection</dt><dd>${isFresh ? "Connected" : "Offline (cached state)"}</dd></div>
+      <div><dt>Tempo</dt><dd>${state.tempo ? Number(state.tempo).toFixed(1) + " BPM" : "Unknown"}</dd></div>
       <div><dt>Tracks</dt><dd>${state.track_count ?? "Unknown"}</dd></div>
     `;
     renderEvents(data.events || []);
@@ -1528,3 +1612,4 @@ renderTabs();
 renderPromptGrid();
 refreshStatus();
 setInterval(refreshStatus, 2500);
+

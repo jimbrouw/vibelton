@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vibelton Arranger</title>
+  <link rel="stylesheet" href="arranger_device.css?v=3">
+  <script src="/vibelton_auth.js"></script>
+</head>
+<body>
+  <div class="arranger-container">
+    <!-- Header -->
+    <header class="arranger-header">
+      <div class="header-left">
+        <span class="brand-badge"><span class="icon">⚡</span> VIBELTON ARRANGER</span>
+        <div id="connectionPill" class="connection-pill is-offline">
+          <span class="led"></span>
+          <span id="connectionText">Connecting…</span>
+        </div>
+        <div id="setNameBadge" class="set-name-badge">
+          <span id="setNameText">Scanning Set…</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <span id="versionInfo" class="version-info" title="Device · Bridge (Remote Script) · Server"></span>
+        <button id="btnVersionWarn" class="version-warn" type="button" hidden>⚠ Update needed</button>
+        <button id="btnRefresh" class="btn-icon-text" title="Refresh Live Set readback">↻ Refresh</button>
+        <button id="btnPopout" class="btn-icon-text" title="Expand to floating studio window">⤢ Pop Out Window</button>
+      </div>
+    </header>
+    <div id="versionPanel" class="version-panel" hidden>
+      <div id="versionPanelBody"></div>
+      <button id="btnVersionClose" type="button">Close</button>
+    </div>
+    <div id="offlineBanner" class="offline-banner" role="alert" hidden>
+      <span id="offlineMessage">Server offline</span>
+      <button id="btnRetry" type="button">Retry</button>
+      <button id="btnShowLog" type="button">Show log path</button>
+      <code id="logPathText" hidden>~/.vibelton/logs/server.log</code>
+    </div>
+
+    <!-- Main Content: 3-Step Rack Layout -->
+    <main class="arranger-main">
+      <!-- Step 1: Stem Roles Row -->
+      <section class="step-card">
+        <div class="step-card-header">
+          <span class="step-title"><span class="num">1</span> STEM ROLES</span>
+          <span id="stemsCountBadge" class="stem-source-badge">0 tracks</span>
+        </div>
+        <div class="role-memory-row">
+          <span id="roleMemoryNote" class="role-memory-note"></span>
+          <button id="btnForgetRoles" type="button" class="role-memory-forget" hidden>Forget</button>
+        </div>
+        <div id="stemsContainer" class="stems-container">
+          <div class="status-feedback">Inspecting track stems…</div>
+        </div>
+      </section>
+
+      <!-- Step 2: Genre Energy Profile -->
+      <section class="step-card energy-card">
+        <div class="step-card-header">
+          <span class="step-title"><span class="num">2</span> STRUCTURE</span>
+          <div class="genre-controls-bar">
+            <select id="genreSelect" class="genre-select" aria-label="Select Genre">
+              <option value="House" selected>House</option>
+              <option value="Techno">Peak-Time Techno</option>
+              <option value="Drum & Bass">Drum &amp; Bass</option>
+              <option value="UK Garage">UK Garage (UKG)</option>
+            </select>
+            <select id="variantSelect" class="variant-select" aria-label="Select Structure Variant">
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+        </div>
+        <div id="genreVariantInfo" class="genre-variant-info">
+          <span id="variantMetaSpan">144 bars · 4:39 · 7 arrangement sections</span>
+        </div>
+        <div id="energyCurveWrapper" class="energy-curve-wrapper">
+          <svg id="energySvg" class="energy-svg" viewBox="0 0 800 64">
+            <defs>
+              <linearGradient id="energyGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#e6d765" stop-opacity="0.6"/>
+                <stop offset="100%" stop-color="#e6d765" stop-opacity="0.05"/>
+              </linearGradient>
+            </defs>
+            <g id="svgGrid"></g>
+            <path id="svgFill" class="energy-curve-fill" d=""/>
+            <path id="svgStroke" class="energy-curve-stroke" d=""/>
+            <g id="svgSections"></g>
+          </svg>
+          <!-- Floating Interactive Tooltip -->
+          <div id="energyTooltip" class="energy-tooltip">
+            <div id="ttTitle" class="tt-title">Breakdown · 16 bars</div>
+            <div class="tt-row"><span class="tt-label">Energy:</span><span id="ttEnergy" class="tt-val">3/10</span></div>
+            <div class="tt-row"><span class="tt-label">Active:</span><span id="ttActive" class="tt-val tt-active">Chords, Lead</span></div>
+            <div class="tt-row"><span class="tt-label">Muted:</span><span id="ttMuted" class="tt-val tt-muted">Kick, Bass</span></div>
+            <div id="ttTransition" class="tt-transition">Strip drums first, hold back kick.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 3: Scaffold Action & Panic Rollback -->
+      <section class="step-card actions-column">
+        <div>
+          <div class="step-card-header">
+            <span class="step-title"><span class="num">3</span> SCAFFOLD &amp; ROLLBACK</span>
+          </div>
+          <!-- Stepper -->
+          <div class="status-stepper">
+            <span id="stepAnalyze" class="stepper-step">Analyzing</span>
+            <span class="stepper-arrow">→</span>
+            <span id="stepPlan" class="stepper-step">Planning</span>
+            <span class="stepper-arrow">→</span>
+            <span id="stepPlace" class="stepper-step">Placed</span>
+            <span class="stepper-arrow">→</span>
+            <span id="stepVerify" class="stepper-step">Verified</span>
+          </div>
+        </div>
+
+        <!-- Arrangement Blueprint Details (Visible in Studio View) -->
+        <div id="arrangementSummaryCard" class="arrangement-summary-card">
+          <div class="summary-card-title">ARRANGEMENT BLUEPRINT</div>
+          <div class="summary-stat-row">
+            <span class="stat-label">Duration</span>
+            <span id="statDuration" class="stat-value">144 bars (4:39 @ 119 BPM)</span>
+          </div>
+          <div class="summary-stat-row">
+            <span class="stat-label">Structure</span>
+            <span id="statStructure" class="stat-value">Club Arrangement (7 sections)</span>
+          </div>
+          <div class="summary-stat-row">
+            <span class="stat-label">Placement</span>
+            <span class="stat-value">Subtractive stem layout</span>
+          </div>
+          <div class="summary-stat-row">
+            <span class="stat-label">Safety</span>
+            <span class="stat-value highlight-green">Preflight snapshot enabled</span>
+          </div>
+        </div>
+
+        <!-- Safety check -->
+        <label id="safetyBox" class="safety-box" title="Ensure you are working in a named working copy to protect your master Set">
+          <input type="checkbox" id="workingCopyCheck">
+          <span id="safetyLabel">Working copy confirmed</span>
+        </label>
+
+        <!-- Scope: whole arrangement or a single section -->
+        <label class="scope-row">
+          <span>Scope</span>
+          <select id="scopeSelect"><option value="">Whole arrangement</option></select>
+        </label>
+        <div id="scopeState" class="scope-state"></div>
+
+        <!-- Action Buttons -->
+        <button id="btnScaffold" class="btn-scaffold" disabled>
+          <span>⚡</span> <span id="scaffoldBtnLabel">Scaffold 4-Min Arrangement</span>
+        </button>
+
+        <button id="btnRollback" class="btn-rollback" disabled>
+          <span>↩</span> Undo / Revert to Loop
+        </button>
+        <div id="rollbackPreview" class="rollback-preview" hidden>
+          <div id="rollbackPreviewText"></div>
+          <div class="rollback-preview-actions">
+            <button id="btnRollbackConfirm" type="button">Confirm undo</button>
+            <button id="btnRollbackCancel" type="button">Cancel</button>
+          </div>
+        </div>
+
+        <div id="statusFeedback" class="status-feedback">Checking Ableton bridge…</div>
+        <details id="errorDetails" class="error-details" hidden>
+          <summary>Details</summary>
+          <pre id="errorDetailsText"></pre>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <!-- Preview: nothing is sent to Live until Apply is pressed -->
+  <div id="planPreview" class="plan-preview" role="dialog" aria-label="Arrangement preview" hidden>
+    <div class="plan-preview-head">
+      <div>
+        <div class="plan-preview-title">PREVIEW <span class="plan-preview-note">— nothing has been written to Live yet</span></div>
+        <div id="planPreviewMeta" class="plan-preview-meta"></div>
+      </div>
+      <div class="plan-preview-actions">
+        <button id="btnPlanApply" type="button" class="btn-plan-apply">Apply to Live</button>
+        <button id="btnPlanCancel" type="button">Cancel</button>
+      </div>
+    </div>
+    <div id="planTimeline" class="plan-timeline"></div>
+    <ul id="planNotes" class="plan-notes"></ul>
+  </div>
+
+  <script src="arranger_device.js?v=3"></script>
+</body>
+</html>

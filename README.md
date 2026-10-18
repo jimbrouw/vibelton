@@ -2,6 +2,8 @@
 
 A local natural-language copilot for Ableton Live 12.
 
+**Composition Lab** adds a separate fourth tab for original MIDI compositions with changing metres, locked parts, local revisions, and preserved user instruments. See [the workflow and local API](COMPOSITION_LAB.md) and [real Ableton verification](COMPOSITION_LAB_SMOKE_TEST.md).
+
 Natural-language control for Ableton Live 12 on macOS and Windows.
 
 This project has two active parts:
@@ -32,6 +34,14 @@ The current working surface covers tempo, playback, tracks, scenes, MIDI clips, 
    ```
 
 6. Open `http://127.0.0.1:8765`.
+
+## Arrange a selected map in Live
+
+In **Production → Arrange**, choose a style and one of its three bar maps. Select the existing Arrangement clips and the roles they should play, then review the exact section placements and any unfilled bars. Vibelton copies those clips into a new range after the current Arrangement; it does not replace the original material or generate new notes. Save and open a named working copy of the Set before pressing **Apply to working copy**. Check the job result before treating the placement as complete. **Roll back recorded changes** deletes only the copies the bridge reports creating.
+
+Choose **Build in → Session View scenes** when the material lives in Session View. The source picker lists every Live track, including tracks with no Session clips. Assign a role and a source clip, then review a seven-scene plan. Apply appends new named scenes and duplicates the selected clips into their matching section roles; the original scenes and clips stay in place. Rollback deletes the recorded new scenes if they have not been changed. The bar counts are scene labels and arrangement guidance: Live continues looping the clips until you launch another scene. Session scene execution requires the `session_scene_v1` bridge capability and a Live restart after installing this Remote Script update.
+
+The Arrangement timeline path requires the `arrangement_copy_v2` Live bridge capability. After updating the Remote Script, restart Ableton Live and draft a fresh map for the new session. Existing locators remain untouched; planned section cues are review metadata because native locator readback is not deterministic. Whole-bar Arrangement source clips of up to 16 bars are supported; clips with extended loop regions are not currently Arrangement copy sources. Unfilled roles and bars are shown in the plan for musical review.
 
 ## Optional ChatGPT Planning
 
@@ -132,3 +142,9 @@ The server and Ableton bridge communicate through:
 ```
 
 This keeps the first bridge dependency-free inside Ableton's Python runtime.
+
+## V2 production desk
+
+The Production tab offers six selectable arrangement styles: House, Drum & Bass, Techno, UK Garage, Hip Hop, and Disco / Nu-disco. Each has three deterministic, read-only bar maps and a matching Finish Track structural diagnosis. Tempo can suggest a style when the range is distinctive; overlapping ranges are shown as possibilities because BPM does not identify a genre. The user always chooses the style and map.
+
+These maps reuse existing material as planning references. They do not generate notes or apply clips. Only the verified House Club copy workflow currently has a Live execution path, limited to a 124 BPM, 4/4 Set with one fingerprinted 16-bar source loop at beat 0. Other styles remain planning-only until separately verified bridge execution exists.

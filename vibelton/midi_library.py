@@ -14,15 +14,27 @@ from typing import Any
 from .genre_dna import detect_style_from_text as detect_style
 
 
-DEFAULT_MIDI_ROOTS = [
-    "/Users/standard/Music/free-midi-chords-20240314",
-    "/Users/standard/Music/GM Mapped",
-    "/Users/standard/Music/free-midi-progressions-20240314",
-    "/Users/standard/Music/Cymatics_Black_Friday_Deluxe_Bundle",
-    "/Users/standard/Music/DrumPlug Ascension Sound Pack/_MIDI",
-    "/Users/standard/Music/Cymatics_Savage_Drums_For_Trap_Gold_Edition/Cymatics - Savage Drums for Trap - Gold Edition/MIDI",
-    "/Users/standard/Music",
-]
+_MUSIC = Path.home() / "Music"
+DEFAULT_MIDI_ROOTS = [str(path) for path in (
+    _MUSIC / "free-midi-chords-20240314",
+    _MUSIC / "GM Mapped",
+    _MUSIC / "free-midi-progressions-20240314",
+    _MUSIC / "Cymatics_Black_Friday_Deluxe_Bundle",
+    _MUSIC / "DrumPlug Ascension Sound Pack" / "_MIDI",
+    _MUSIC / "Cymatics_Savage_Drums_For_Trap_Gold_Edition" / "Cymatics - Savage Drums for Trap - Gold Edition" / "MIDI",
+    _MUSIC,
+)]
+
+
+def configured_midi_roots() -> list[str]:
+    """Default roots plus any ``midi_library_roots`` listed in ~/.vibelton/config.json."""
+    try:
+        config = json.loads((Path.home() / ".vibelton" / "config.json").read_text(encoding="utf-8"))
+        extra = config.get("midi_library_roots", []) if isinstance(config, dict) else []
+    except (OSError, ValueError):
+        extra = []
+    return DEFAULT_MIDI_ROOTS + [str(Path(item).expanduser()) for item in extra if isinstance(item, str) and item.strip()]
+
 
 CACHE_PATH = Path.home() / ".cache" / "vibelton" / "midi_grooves.json"
 
@@ -46,18 +58,29 @@ DRUM_KEYWORDS = {
 }
 
 STYLE_ALIASES = [
-    ("drum n bass", ("drum n bass", "dnb")),
-    ("jungle", ("jungle", "old skool", "breakbeat")),
-    ("uk garage", ("uk garage", "garage")),
-    ("hip hop", ("hip hop", "hip-hop", "hiphop", "trap")),
-    ("house", ("house", "four to the floor")),
-    ("techno", ("techno",)),
-    ("trance", ("trance",)),
-    ("reggaeton", ("reggaeton", "dembow")),
-    ("reggae", ("reggae", "dancehall", "dance hall")),
-    ("downtempo", ("downtempo",)),
-    ("afrobeats", ("afrobeats", "afrobeat")),
-    ("amapiano", ("amapiano",)),
+    # Sub-genres first so they match before the broader parent
+    ("deep_house",   ("deep house", "deep_house", "soulful house")),
+    ("tech_house",   ("tech house", "tech_house")),
+    ("drum n bass",  ("drum n bass", "drum and bass", "dnb", "d&b", "d & b")),
+    ("jungle",       ("jungle", "old skool", "breakbeat", "amen", "ragga jungle")),
+    ("uk garage",    ("uk garage", "ukg", "garage", "2 step", "2step", "2-step")),
+    ("hip hop",      ("hip hop", "hip-hop", "hiphop", "boom bap", "lo fi", "lo-fi", "lofi")),
+    ("trap",         ("trap", "drill", "plugg")),
+    ("house",        ("house", "four to the floor", "chicago house", "funky house",
+                      "disco house", "tribal house", "progressive house", "acid house")),
+    ("techno",       ("techno", "industrial", "minimal techno")),
+    ("trance",       ("trance", "psy trance", "psytrance", "progressive trance")),
+    ("reggaeton",    ("reggaeton", "dembow", "latin trap")),
+    ("reggae",       ("reggae", "dancehall", "dance hall", "ska", "dub")),
+    ("downtempo",    ("downtempo", "chillout", "chill out", "trip hop", "triphop")),
+    ("afrobeats",    ("afrobeats", "afrobeat", "afro")),
+    ("amapiano",     ("amapiano", "amapiano")),
+    ("funk",         ("funk", "funky", "groove", "r&b", "rnb", "soul", "neo soul")),
+    ("pop",          ("pop", "edm pop", "electropop", "synth pop", "synthpop")),
+    ("ambient",      ("ambient", "cinematic", "atmospheric", "chillwave")),
+    ("jazz",         ("jazz", "bebop", "swing", "blues")),
+    ("latin",        ("latin", "salsa", "bossa nova", "bossanova", "samba", "cumbia")),
+    ("classical",    ("classical", "orchestral", "piano solo", "strings")),
 ]
 
 STYLE_WORDS = {alias: style for style, aliases in STYLE_ALIASES for alias in aliases}
@@ -247,7 +270,7 @@ def load_cached_library(path: Path = CACHE_PATH) -> dict[str, Any]:
 
 
 def build_library(roots: list[str] | None = None, limit: int | None = None) -> dict[str, Any]:
-    paths = discover_midi_files(roots or DEFAULT_MIDI_ROOTS)
+    paths = discover_midi_files(roots or configured_midi_roots())
     if limit is not None:
         paths = paths[:limit]
 
@@ -285,7 +308,7 @@ def build_library(roots: list[str] | None = None, limit: int | None = None) -> d
 
     return {
         "version": 1,
-        "roots": roots or DEFAULT_MIDI_ROOTS,
+        "roots": roots or configured_midi_roots(),
         "file_count": len(paths),
         "groove_count": parsed,
         "skipped": dict(skipped),
@@ -519,10 +542,18 @@ def fit_pattern(notes: list[dict[str, Any]], bars: int, keep: set[int], energy: 
 
 
 def style_from_path(path: Path) -> str:
-    filename_style = style_from_text(path.stem)
-    if filename_style != "generic":
-        return filename_style
-    return detect_style(str(path).replace("_", " ").replace("-", " "))
+    # Check full path — folder names carry genre context (e.g. "Deep House Chords/file.mid")
+    full_text = str(path).replace("_", " ").replace("-", " ")
+    full_style = style_from_text(full_text)
+    if full_style != "generic":
+        return full_style
+    # genre_dna detect_style recognises sub-genres (deep_house, tech_house, etc.)
+    # Only trust it when it returns something more specific than "house", which is
+    # the universal fallback and would flood that bucket with unrelated patterns.
+    detected = detect_style(full_text)
+    if detected and detected != "house":
+        return detected
+    return "generic"
 
 
 def bpm_from_path(path: Path) -> int | None:

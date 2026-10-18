@@ -292,6 +292,16 @@ def weighted_progression(style: str, mode: str, colour: str, bars: int, seed: in
     return result
 
 
+# Genres where the main/drop section traditionally reduces to 1-2 chords.
+_EDM_STYLES = {
+    "house", "uk garage", "techno", "trance",
+    "deep_house", "tech_house", "garage_house", "afro_house",
+    "bass_house", "disco_house", "progressive_house",
+    "drum n bass", "jungle", "dubstep", "grime",
+    "trap",
+}
+
+
 def plan_harmony(
     root_midi: int,
     mode: str,
@@ -302,9 +312,51 @@ def plan_harmony(
     seed: int,
     extensions: tuple[int, ...] = (),
     parallel_motion: bool = False,
+    energy: str = "main",
 ) -> HarmonyPlan:
-    degrees = weighted_progression(style, mode, colour, bars, seed)
-    raw = [chord_from_degree(root_midi, mode, degree, octave, extensions, colour) for degree in degrees]
+    # Section-aware degree selection (Fix 2: section-aware reharmonisation)
+    working_mode = mode
+    effective_extensions = extensions
+    effective_root_midi = root_midi
+    energy_norm = str(energy or "main").lower().strip().replace(" ", "_")
+
+    if energy_norm == "intro":
+        tonic = "i" if mode == "minor" else "I"
+        sub = "iv" if mode == "minor" else "IV"
+        _cycle = [tonic, tonic, sub, tonic]
+        degrees = [_cycle[bar % len(_cycle)] for bar in range(bars)]
+    elif energy_norm == "build":
+        tonic = "i" if mode == "minor" else "I"
+        sub = "VI" if mode == "minor" else "IV"
+        pre_dom = "bVII" if mode == "minor" else "ii"
+        dom = "V"
+        _turnaround = [tonic, sub, pre_dom, dom]
+        degrees = [_turnaround[bar % len(_turnaround)] for bar in range(bars)]
+    elif energy_norm in ("drop", "drop_2", "main_2", "peak_2"):
+        if energy_norm in ("drop_2", "main_2", "peak_2"):
+            effective_root_midi = root_midi + 2
+        if mode == "minor":
+            alt = "bII" if (seed % 2 == 0 or colour == "cinematic") else "VI"
+            _vamp = ["i", "i", "i", alt] if bars >= 4 else ["i", alt]
+        else:
+            alt = "bVII" if colour in ("cinematic", "jazzy") else "IV"
+            _vamp = ["I", "I", "I", alt] if bars >= 4 else ["I", alt]
+        degrees = [_vamp[bar % len(_vamp)] for bar in range(bars)]
+    elif energy_norm == "main" and style in _EDM_STYLES:
+        # Drop: reduce to at most 2 unique chords for a more hypnotic feel
+        full = weighted_progression(style, mode, colour, bars, seed)
+        unique = list(dict.fromkeys(full))[:2]
+        degrees = [unique[bar % len(unique)] for bar in range(bars)]
+    elif energy_norm in ("break", "breakdown", "bridge"):
+        # Borrow from parallel mode or open into extended 4-chord progression
+        working_mode = "major" if (energy_norm == "break" and mode == "minor") else ("minor" if energy_norm == "break" else mode)
+        degrees = weighted_progression(style, working_mode, colour, bars, seed)
+        if energy_norm in ("breakdown", "bridge"):
+            ext_7 = 10 if working_mode == "minor" else 11
+            effective_extensions = tuple(dict.fromkeys((*extensions, ext_7, 14)))
+    else:
+        degrees = weighted_progression(style, mode, colour, bars, seed)
+    raw = [chord_from_degree(effective_root_midi, working_mode, degree, octave, effective_extensions, colour) for degree in degrees]
     if parallel_motion and raw:
         first_voiced = sorted(raw[0])
         first_root = raw[0][0]

@@ -15,3 +15,44 @@ Panel target for V2.1: Jim plus two producer friends.
 | 2026-05-01 | Stage 1 demo smoke pass | 10 Vibelton demo prompts in Ableton | Not applicable | Jim | Needs patch | User reported all demo prompts starting playback around bar 52, prompt 3 hat racks loading empty, prompt 7 chords getting only FX, and prompts 5/8 sounding too harmonically similar. Patched explicit playback reset, safer stock instrument candidates, and stronger trap/ambient harmonic cues. |
 | 2026-05-01 | Stage 3 melody shaping | Generated house, trap, and ambient hooks | Not selected | Not selected | Local tests passed | Added deterministic melody contour, rest-density, and phrase-ending rules. Local generation check showed house hooks denser than trap and ambient endings held longer; Ableton listening test still pending. |
 | 2026-05-01 | Stage 4 Finisher reframing | Existing Session View loop arranger | Not applicable | Jim | Requirements clarified | User clarified The Finisher should arrange existing Session View loops non-destructively, ask follow-up questions when needed, open Arrangement View, optionally edit existing arrangements later, and rename badly named tracks from loaded devices where possible. |
+
+## Phase 1 — House Sub-Genre Expansion
+
+Generate each sketch using the genre card UI at http://localhost:3000 or via the Deep/Tech House prompt templates. Listen to the resulting Ableton sketch. Mark each as PASS or FAIL.
+
+Acceptance checklist reminder:
+
+- Deep House tempo lands in 120–124 BPM.
+- Tech House tempo lands in 127–132 BPM.
+- Deep House and Tech House kick patterns are audibly different.
+- Deep House bass patterns include parent House movement plus sub-genre-specific additions.
+- House card expands and the Deep House / Tech House cards populate the prompt field.
+- Card label and description make sense without needing to know genre vocabulary.
+
+### Deep House Listening
+
+| Field | Entry |
+|---|---|
+| Date |  |
+| Prompt used | Create an expanded Deep House song sketch with soulful chords, warm bassline, late-night groove, and jazzy lead phrases. |
+| BPM observed |  |
+| Intro style observed | drums_reveal / atmosphere / filtered |
+| Character assessment | Soulful / late-night feel:  |
+| Verdict | PASS / FAIL |
+| Notes |  |
+
+### Tech House Listening
+
+| Field | Entry |
+|---|---|
+| Date |  |
+| Prompt used | Create an expanded Tech House song sketch with rolling bass, dark industrial textures, tight hi-hats, and relentless kick. |
+| BPM observed |  |
+| Intro style observed | drums_reveal / atmosphere / filtered |
+| Character assessment | Dark / peak-hour feel:  |
+| Verdict | PASS / FAIL |
+| Notes |  |
+
+Phase 1 AC-7 Status: [ PASS / FAIL ]
+
+Signed off by: [Jim] on [date]

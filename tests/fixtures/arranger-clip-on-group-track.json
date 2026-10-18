@@ -1,0 +1,142 @@
+{
+  "description": "A group track that (impossibly in Live, but defensively) reports an Arrangement clip.",
+  "expect": {
+    "groups": [
+      "g-drums"
+    ]
+  },
+  "production": {
+    "schema_version": "vibelton.production-project-state/v1",
+    "tempo": 124.0,
+    "metre": [
+      4,
+      4
+    ],
+    "set_path": "/Sets/edge vibelton-working-copy.als",
+    "arrangement_readable": true,
+    "arrangement_end": 0.0,
+    "locators": [],
+    "tracks": [
+      {
+        "id": "g-drums",
+        "name": "Drums",
+        "type": "audio",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Stray group clip",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg"
+          }
+        ],
+        "session_clips": [],
+        "is_group": true,
+        "group_track_id": null
+      },
+      {
+        "id": "kick",
+        "name": "1-Kick",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Kick",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": "g-drums"
+      },
+      {
+        "id": "bass",
+        "name": "2-Bass",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Bass",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      },
+      {
+        "id": "hats",
+        "name": "3-Hats",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Hats",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      }
+    ]
+  }
+}
