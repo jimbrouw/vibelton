@@ -6,18 +6,21 @@ import os
 import time
 
 from _Framework.ControlSurface import ControlSurface
+from .composition_bridge import CompositionBridge
+from .audio_bridge import AudioBridge
 
 
 QUEUE_DIR = os.path.join(os.path.expanduser("~"), ".vibelton")
 COMMANDS_FILE = os.path.join(QUEUE_DIR, "commands.jsonl")
 EVENTS_FILE = os.path.join(QUEUE_DIR, "events.jsonl")
 STATE_FILE = os.path.join(QUEUE_DIR, "state.json")
-BRIDGE_VERSION = "2026-05-01-finisher-1"
+BRIDGE_VERSION = "2026-10-18-markers-2"
 
 
-class Vibelton(ControlSurface):
+class Vibelton(AudioBridge, CompositionBridge, ControlSurface):
     def __init__(self, c_instance):
         super(Vibelton, self).__init__(c_instance)
+        self._composition_init()
         self._command_offset = 0
         self._pending_play_position = None
         self._pending_play_attempts = 0
@@ -78,6 +81,7 @@ class Vibelton(ControlSurface):
         self.schedule_message(10, self._poll)
 
     def _handle_command(self, line):
+        command = {}
         try:
             command = json.loads(line)
             actions = command.get("actions", [])
@@ -85,11 +89,19 @@ class Vibelton(ControlSurface):
                 self._execute(action)
             self._log("command_complete", "Executed %s action(s)" % len(actions), {"command_id": command.get("id")})
         except Exception as exc:
-            self._log("error", "Command failed: %s" % exc)
+            self._log("error", "Command failed: %s" % exc, {"command_id": command.get("id")})
 
     def _execute(self, action):
         action_type = action.get("type")
-        if action_type == "set_tempo":
+        if action_type == "composition_apply":
+            self._composition_apply(action)
+        elif action_type == "audio_import":
+            self._audio_import(action)
+        elif action_type == "production_apply":
+            self._production_apply(action)
+        elif action_type == "phase3b_arrangement_spike":
+            self._phase3b_arrangement_spike(action)
+        elif action_type == "set_tempo":
             self.song().tempo = float(action.get("bpm", self.song().tempo))
         elif action_type == "set_song_position":
             self._set_song_position(action.get("beat", 0))
@@ -754,7 +766,8 @@ class Vibelton(ControlSurface):
                         clips_data.append({
                             "scene_index": scene_index,
                             "name": clip_name,
-                            "length": clip_length
+                            "length": clip_length,
+                            "metre": [int(slot.clip.signature_numerator), int(slot.clip.signature_denominator)]
                         })
                 
                 track_type = "midi" if (hasattr(track, "has_midi_input") and track.has_midi_input) else "audio"
@@ -777,8 +790,28 @@ class Vibelton(ControlSurface):
             "bridge_version": BRIDGE_VERSION,
             "tracks": tracks_data,
         }
-        with open(STATE_FILE, "w", encoding="utf-8") as handle:
+        try:
+            composition_state = self._composition_state()
+            for track, extra in zip(tracks_data, composition_state.pop('composition_tracks')):
+                track.update(extra)
+                summaries = track.get('session_clip_summaries') or {}
+                for c in track.get('clips', []):
+                    s_idx = str(c.get('scene_index'))
+                    if s_idx in summaries and 'summary' not in c:
+                        c['summary'] = summaries[s_idx]
+            data.update(composition_state)
+        except Exception as exc:
+            data['composition_error'] = str(exc)
+        try:
+            data['production'] = self._production_state()
+            data['capabilities'] = sorted(set(data.get('capabilities', [])) | {'production_v1', 'song_sketch_v1', 'arrangement_copy_v2', 'session_scene_v1'})
+            if any(t.get('audio_import_supported') for t in data['production']['tracks']):
+                data['capabilities'].append('audio_import_v1')
+        except Exception as exc:
+            data['production_error'] = str(exc)
+        with open(STATE_FILE + '.tmp', "w", encoding="utf-8") as handle:
             json.dump(data, handle)
+        os.replace(STATE_FILE + '.tmp', STATE_FILE)
 
     def _log(self, event_type, message, data=None):
         event = {
