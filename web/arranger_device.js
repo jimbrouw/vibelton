@@ -988,27 +988,23 @@
 
   // --- Pop Out Handler ---
   async function triggerPopout() {
-    // 1. Call backend to open desktop floating app window
+    // Inside Max the device's own jweb has no popup windows: window.open (or a max: URL) would load the
+    // pop-out page into the docked panel itself, which then hides its Pop Out button for good. So in Max,
+    // only ask the patch to show its floating window.
+    if (window.max && typeof window.max.outlet === 'function') {
+      try {
+        window.max.outlet('open_popout', 1);
+      } catch (e) {
+        console.warn('Max popout request:', e);
+      }
+      return;
+    }
+    // In a normal browser: ask the server, then open a popup window.
     try {
       await fetch('/api/popout', { method: 'POST' });
     } catch (e) {
       console.warn('Backend popout request:', e);
     }
-    // 2. Max jweb max: URL protocol trigger
-    try {
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = 'max:open_popout';
-      document.body.appendChild(iframe);
-      setTimeout(() => iframe.remove(), 500);
-    } catch (e) {}
-    // 3. Notify Max node.script if running in Max jweb
-    if (window.max && typeof window.max.outlet === 'function') {
-      try {
-        window.max.outlet('open_popout', 1);
-      } catch (e) {}
-    }
-    // 4. Open standard popup window as fallback
     try {
       const popoutUrl = `${window.location.origin}/arranger_device.html?popout=1`;
       window.open(popoutUrl, 'VibeltonArrangerStudio', 'width=1120,height=680,menubar=no,toolbar=no,location=no,status=no');
