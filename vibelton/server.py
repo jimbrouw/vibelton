@@ -436,21 +436,20 @@ class Handler(BaseHTTPRequestHandler):
         self.send_error(404)
 
     def handle_popout(self) -> None:
+        """Never launches a browser unless VIBELTON_POPOUT_BROWSER=1 (a runaway caller once opened dozens of windows)."""
+        url = f"http://{HOST}:{PORT}/arranger_device.html?popout=1"
+        if os.environ.get("VIBELTON_POPOUT_BROWSER") != "1":
+            self.send_json({"status": "not_opened", "url": url})
+            return
         try:
             import subprocess, platform
-            url = f"http://{HOST}:{PORT}/arranger_device.html?popout=1"
             opened = False
             if platform.system() == "Darwin":
-                chrome = Path("/Applications/Google Chrome.app")
-                brave = Path("/Applications/Brave Browser.app")
-                if chrome.exists():
-                    subprocess.Popen(["open", "-na", "Google Chrome", "--args", f"--app={url}", "--window-size=1120,680"])
-                    subprocess.Popen(["osascript", "-e", 'tell application "Google Chrome" to activate'])
-                    opened = True
-                elif brave.exists():
-                    subprocess.Popen(["open", "-na", "Brave Browser", "--args", f"--app={url}", "--window-size=1120,680"])
-                    subprocess.Popen(["osascript", "-e", 'tell application "Brave Browser" to activate'])
-                    opened = True
+                for app in ("Google Chrome", "Brave Browser"):
+                    if Path(f"/Applications/{app}.app").exists():
+                        subprocess.Popen(["open", "-na", app, "--args", f"--app={url}", "--window-size=1120,680"])
+                        opened = True
+                        break
             if not opened:
                 webbrowser.open(url)
             self.send_json({"status": "opened", "url": url})
@@ -544,12 +543,15 @@ def should_open_browser(env: "os._Environ[str] | dict[str, str] | None" = None) 
 
 
 def create_server() -> tuple[ThreadingHTTPServer, int]:
-    for port in range(PORT, PORT + 20):
+    # Started by the device: never wander to another port. Two devices racing at startup must end up with one
+    # server on the port the device page loads from, not a second one on PORT+1 that nothing points at.
+    span = 1 if os.environ.get("VIBELTON_DAEMON") == "1" else 20
+    for port in range(PORT, PORT + span):
         try:
             return ThreadingHTTPServer((HOST, port), Handler), port
         except OSError:
             continue
-    raise RuntimeError(f"No open port found between {PORT} and {PORT + 19}")
+    raise RuntimeError(f"No open port found between {PORT} and {PORT + span - 1}")
 
 
 if __name__ == "__main__":

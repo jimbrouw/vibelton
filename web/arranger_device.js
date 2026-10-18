@@ -890,8 +890,9 @@
       }
       if (verified) {
         updateStepper('verify', true);
-        const copiesCount = lastAppliedJob?.execution?.completed_actions || 'all';
-        elStatusFeedback.textContent = `✓ Verified in Live! Placed ${copiesCount} loop copies. 1-click Undo active.`;
+        const created = (lastAppliedJob?.execution?.created_copies || []).length;
+        const placedText = created ? `${created} clip ${created === 1 ? 'copy' : 'copies'}` : 'the clips';
+        elStatusFeedback.textContent = `✓ Verified in Live! Placed ${placedText}. 1-click Undo active.`;
         elStatusFeedback.className = 'status-feedback success';
       } else {
         elStatusFeedback.textContent = 'Queued to Live. Check arrangement view.';

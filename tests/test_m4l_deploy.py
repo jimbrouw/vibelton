@@ -36,6 +36,25 @@ class M4lBuildDeployTests(unittest.TestCase):
         self.assertIn(("obj-15", "obj-12"), ids)  # prepend loadurl -> jweb
         self.assertIn(("obj-16", "obj-8"), ids)   # retry -> node.script
 
+    def test_node_script_is_saved_the_way_max_saves_it(self) -> None:
+        # Max stores node.script as a plain newobj; maxclass "node.script" cannot be created, which leaves the
+        # helper un-started and every patchcord to/from it deleted on load.
+        patcher = json.loads((ROOT / "m4l" / "Vibelton Arranger.maxpat").read_text())["patcher"]
+        box = next(b["box"] for b in patcher["boxes"] if b["box"].get("text", "").startswith("node.script"))
+        self.assertEqual("newobj", box["maxclass"])
+        self.assertEqual({"autostart", "defer", "node", "npm", "watch"}, set(box["saved_object_attributes"]))
+
+    def test_every_patchcord_end_exists(self) -> None:
+        def walk(patcher: dict) -> None:
+            ids = {b["box"]["id"] for b in patcher["boxes"]}
+            for line in patcher.get("lines", []):
+                for end in ("source", "destination"):
+                    self.assertIn(line["patchline"][end][0], ids)
+            for b in patcher["boxes"]:
+                if "patcher" in b["box"]:
+                    walk(b["box"]["patcher"])
+        walk(json.loads((ROOT / "m4l" / "Vibelton Arranger.maxpat").read_text())["patcher"])
+
     def test_preflight_clean_for_repo(self) -> None:
         self.assertEqual([], deploy_m4l.preflight(ROOT / "m4l"))
 

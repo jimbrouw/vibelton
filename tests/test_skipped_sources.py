@@ -67,6 +67,17 @@ class SkippedSourceTests(unittest.TestCase):
         self.assertEqual('group_track', found[('Drums', 'Stray group clip')])
         self.assertEqual('no_role', found[('Zzz Thing', 'Zzz')])
 
+    def test_two_tracks_with_the_same_role_use_one_and_report_the_other(self) -> None:
+        # A clip the user adds to a second track of an already-used role must not break planning.
+        self.load('12-bar-loop')
+        prod = self.state['production']
+        twin = {**copy.deepcopy(prod['tracks'][0]), 'id': 'kick2', 'name': '5-Kick'}
+        prod['tracks'].append(twin)
+        plan = self.scaffold()
+        used = {c['source_track_id'] for c in plan['actions'][0]['copies']}
+        self.assertEqual(1, len(used & {'kick', 'kick2'}))
+        self.assertIn('role_already_used', {i['reason'] for i in plan['skipped_sources']})
+
     def test_role_ignored(self) -> None:
         self.load('12-bar-loop')
         plan = production.create_scaffold_plan({'genre': 'House', 'variant_id': 'club-version',

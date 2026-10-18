@@ -1371,7 +1371,30 @@ def _placement_records(job: dict[str, Any], persist: bool = True) -> list[dict[s
     records = build(copies, before["tracks"], snapshot.get("set_path") or job.get("set_path"), sections)
     if persist and job.get("status") in {"Applied", "Partial failure", "Failed"}:
         _write(path, {"job_id": job["id"], "plan_id": job["plan_id"], "records": records})
+        _supersede_older_records(job["id"], records)
     return records
+
+
+def _supersede_older_records(job_id: str, records: list[dict[str, Any]]) -> None:
+    """A clip now at a spot an older job once filled (and you since moved away) belongs to the newer job.
+
+    Without this, rolling back the older job would delete the newer job's identical clip."""
+    def spot(record: dict[str, Any]) -> tuple[Any, float, str]:
+        # By track name: Live regenerates track ids when a Set is reopened.
+        return (record.get("track_name") or record.get("track_id"), float(record["destination_beat"]), record["source_fingerprint"])
+
+    spots = {spot(r) for r in records if r.get("key")}
+    folder = ROOT / "placements"
+    for other in folder.glob("*.json") if spots and folder.exists() else []:
+        if other.stem == job_id:
+            continue
+        stored = _read(other)
+        if not stored:
+            continue
+        clash = [r["key"] for r in stored.get("records", []) if r.get("key") and spot(r) in spots and r["key"] not in stored.get("removed", [])]
+        if clash:
+            stored["removed"] = sorted(set(stored.get("removed", [])) | set(clash))
+            _write(other, stored)
 
 
 def _session_path(set_path: str | None, genre: str | None, variant_id: str | None) -> Path:
@@ -2207,6 +2230,7 @@ def create_scaffold_plan(payload: dict[str, Any] | None = None) -> dict[str, Any
 
         sources = []
         assigned_tracks = set()
+        roles_used: set[str] = set()
         skipped: list[dict[str, Any]] = []
         for track_id, track in tracks.items():
             arr_clips = track.get("arrangement_clips") or []
@@ -2230,6 +2254,9 @@ def create_scaffold_plan(payload: dict[str, Any] | None = None) -> dict[str, Any
                 continue
             if role not in needed_roles or track_id in assigned_tracks:
                 continue
+            if role in roles_used:   # one source per role; a second track of the same role is reported, not used
+                _note_skipped(skipped, track, arr_clips, "role_already_used")
+                continue
 
             valid_clips = []
             for c in arr_clips:
@@ -2248,6 +2275,7 @@ def create_scaffold_plan(payload: dict[str, Any] | None = None) -> dict[str, Any
                     "source_start_beat": float(chosen_clip["start_beat"]),
                 })
                 assigned_tracks.add(track_id)
+                roles_used.add(role)
 
         if not sources:
             session_sources = []

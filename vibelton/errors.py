@@ -62,7 +62,7 @@ SKIP_REASON_SHORT = {
     "looped_or_extended": "looped or stretched", "not_whole_bar": "not a whole number of bars",
     "longer_than_16_bars": "longer than 16 bars", "no_fingerprint": "not readable yet",
     "no_role": "on tracks with no recognised role", "group_track": "on group tracks",
-    "role_ignored": "on tracks you set to ignore",
+    "role_ignored": "on tracks you set to ignore", "role_already_used": "on a second track with an already-used role",
 }
 # (count-aware plain sentence, what to do) per reason
 SKIP_REASON_TEXT = {
@@ -74,6 +74,7 @@ SKIP_REASON_TEXT = {
     "no_role": ("{n} clips sit on tracks whose role Vibelton doesn't recognise.", "Pick a role for those stems."),
     "group_track": ("{n} clips sit on group tracks, which are never used.", "Move them onto a normal track."),
     "role_ignored": ("{n} clips are on tracks you set to ignore.", "Give those stems a role if you want them used."),
+    "role_already_used": ("{n} clips are on a second track with a role that is already used.", "Give that track a different role if you want it used."),
 }
 
 
