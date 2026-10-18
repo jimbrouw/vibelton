@@ -260,7 +260,7 @@
 							700.0
 						],
 						"bglocked": 0,
-						"openinpresentation": 0,
+						"openinpresentation": 1,
 						"default_fontsize": 11.0,
 						"default_fontface": 0,
 						"default_fontname": "Ableton Sans Medium",
@@ -287,6 +287,7 @@
 							{
 								"box": {
 									"comment": "Input trigger to open or control popout",
+									"hidden": 1,
 									"id": "obj-p1",
 									"index": 1,
 									"maxclass": "inlet",
@@ -320,7 +321,14 @@
 									],
 									"rendermode": 2,
 									"url": "http://127.0.0.1:8765/arranger_device.html?popout=1",
-									"varname": "popout_jweb"
+									"varname": "popout_jweb",
+									"presentation": 1,
+									"presentation_rect": [
+										0.0,
+										0.0,
+										900.0,
+										550.0
+									]
 								}
 							},
 							{
@@ -338,7 +346,8 @@
 										75.0,
 										22.0
 									],
-									"text": "window flags float, window exec, wvis 1, front"
+									"text": "window flags float, window exec, wvis 1, front",
+									"hidden": 1
 								}
 							},
 							{
@@ -357,7 +366,8 @@
 										68.0,
 										22.0
 									],
-									"text": "thispatcher"
+									"text": "thispatcher",
+									"hidden": 1
 								}
 							},
 							{
@@ -375,7 +385,8 @@
 										95.0,
 										22.0
 									],
-									"text": "js autoresize.js"
+									"text": "js autoresize.js",
+									"hidden": 1
 								}
 							}
 						],
