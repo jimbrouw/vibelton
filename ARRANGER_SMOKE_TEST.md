@@ -157,6 +157,9 @@ everything ran on the user's real working copy, so audio-specific checks (4, 4b)
 - **Markers, still not verified:** the preview's "Markers in Live" line; a Set holding the user's own cues (the working
   copy had none); playhead restore after cue jobs; that the probe must be re-run after every Live restart (the gate is
   per session by design).
+- **Floating pop-out (device `2026-10-18-arranger-9`): passed in Live.** `GET /api/versions` showed the loaded device as
+  arranger-9 (`ok: true`); after Pop Out, the user reported the window stays on top of Live. The compact Structure strip
+  was checked only in a browser (1120x680 pop-out and 750x170 docked sizes), not inside Max's jweb.
 - **Retry button:** pressing Retry did nothing after the server was stopped. The helper's retry handler works when driven
   from outside Max, so the break is somewhere between the page's `window.max.outlet('retry')` and the helper; the cause was
   not found. The helper's watchdog now restarts the server without it.
