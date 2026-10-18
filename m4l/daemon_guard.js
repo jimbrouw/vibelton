@@ -26,7 +26,7 @@ try {
 
 // Bump whenever daemon_guard.js, autoresize.js or the .maxpat changes: the device reports this to the
 // server so it can tell you when the device loaded in Live is older than the one on disk.
-const DEVICE_VERSION = '2026-10-18-arranger-8';
+const DEVICE_VERSION = '2026-10-18-arranger-9';
 const SERVER_HOST = '127.0.0.1';
 const STARTUP_ATTEMPTS = 20; // x 500ms = 10s
 const MIN_PYTHON = '3.11'; // the server test suite is verified on Python 3.11, 3.12 and 3.14

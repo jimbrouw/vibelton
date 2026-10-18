@@ -338,7 +338,7 @@
 										75.0,
 										22.0
 									],
-									"text": "wvis 1, front"
+									"text": "window flags float, window exec, wvis 1, front"
 								}
 							},
 							{

@@ -480,112 +480,97 @@
     updateScopeUI();
   });
 
+  // Drawn at the wrapper's real pixel size (viewBox = CSS size), so text is never stretched.
+  const ENERGY_STRIP_HEIGHT = 64;
+  const ENERGY_LABEL_ROW = 14;
+
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, String(value)));
+    return el;
+  }
+
+  // Longest form of the section label that fits the section's width (about 5.6px per 9px character).
+  function fitSectionLabel(sec, width) {
+    const maxChars = Math.floor((width - 6) / 5.6);
+    const full = `${sec.name} ${sec.bar_count}b`;
+    if (full.length <= maxChars) return full;
+    if (sec.name.length <= maxChars) return sec.name;
+    if (maxChars >= 4) return sec.name.slice(0, maxChars - 1) + '…';
+    return '';
+  }
+
   function drawEnergyCurve() {
     const variantData = getActiveVariantData();
     const sections = variantData.sections || [];
     const totalBars = variantData.total_bars || 144;
 
-    const svgWidth = 800;
-    const svgHeight = 160;
-    const paddingBottom = 26;
-    const usableHeight = svgHeight - paddingBottom - 16;
+    const wrapper = document.getElementById('energyCurveWrapper');
+    const svgWidth = Math.max(120, Math.round(wrapper.clientWidth || 800));
+    const svgHeight = ENERGY_STRIP_HEIGHT;
+    const baseline = svgHeight - ENERGY_LABEL_ROW;
+    const usableHeight = baseline - 4;
+    elEnergySvg.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
 
-    // Clear SVG elements
     elSvgGrid.innerHTML = '';
     elSvgSections.innerHTML = '';
-
+    elSvgStroke.setAttribute('d', '');
+    elSvgFill.setAttribute('d', '');
     if (sections.length === 0) return;
 
-    // Draw horizontal energy grid lines (Energy 2, 4, 6, 8, 10)
-    [2, 4, 6, 8, 10].forEach(level => {
-      const y = svgHeight - paddingBottom - ((level / 10) * usableHeight);
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', '0');
-      line.setAttribute('x2', String(svgWidth));
-      line.setAttribute('y1', String(y));
-      line.setAttribute('y2', String(y));
-      line.setAttribute('stroke', '#282828');
-      line.setAttribute('stroke-dasharray', '2,4');
-      elSvgGrid.appendChild(line);
-    });
+    elSvgGrid.appendChild(svgEl('line', { x1: 0, x2: svgWidth, y1: baseline, y2: baseline, stroke: '#333333' }));
 
-    let points = [];
-    let currentX = 0;
-
-    // Build curve points
+    const points = [];
     sections.forEach((sec, idx) => {
       const startX = (sec.start_bar / totalBars) * svgWidth;
       const endX = (sec.end_bar / totalBars) * svgWidth;
-      const y = svgHeight - paddingBottom - ((sec.energy_level / 10) * usableHeight);
+      const y = baseline - ((sec.energy_level / 10) * usableHeight);
 
       if (idx === 0) {
         points.push({ x: startX, y });
       } else {
-        // Step transition
         points.push({ x: startX, y: points[points.length - 1].y });
         points.push({ x: startX, y });
+        elSvgGrid.appendChild(svgEl('line', { x1: startX, x2: startX, y1: 0, y2: svgHeight, stroke: '#2e2e2e' }));
       }
       points.push({ x: endX, y });
 
-      // Draw vertical section divider
-      if (idx > 0) {
-        const vline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        vline.setAttribute('x1', String(startX));
-        vline.setAttribute('x2', String(startX));
-        vline.setAttribute('y1', '0');
-        vline.setAttribute('y2', String(svgHeight - paddingBottom));
-        vline.setAttribute('stroke', '#333333');
-        elSvgGrid.appendChild(vline);
+      // Energy number inside the step, only when the step is wide enough to hold it.
+      if (endX - startX >= 14) {
+        const energy = svgEl('text', { x: startX + 4, y: Math.min(baseline - 3, y + 11), class: 'energy-level-text' });
+        energy.textContent = String(sec.energy_level);
+        elSvgGrid.appendChild(energy);
       }
 
-      // Draw energy level text above curve
-      const energyText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      energyText.setAttribute('x', String(startX + 6));
-      energyText.setAttribute('y', String(Math.max(14, y - 5)));
-      energyText.setAttribute('fill', '#e6d765');
-      energyText.setAttribute('font-size', '9');
-      energyText.setAttribute('font-weight', '700');
-      energyText.setAttribute('font-family', 'sans-serif');
-      energyText.textContent = `E:${sec.energy_level}`;
-      elSvgGrid.appendChild(energyText);
+      const label = fitSectionLabel(sec, endX - startX);
+      if (label) {
+        const text = svgEl('text', { x: startX + 3, y: svgHeight - 3, class: 'energy-section-text' });
+        text.textContent = label;
+        elSvgGrid.appendChild(text);
+      }
 
-      // Draw section label text at bottom
-      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', String(startX + 6));
-      text.setAttribute('y', String(svgHeight - 8));
-      text.setAttribute('fill', '#999999');
-      text.setAttribute('font-size', '9.5');
-      text.setAttribute('font-weight', '600');
-      text.setAttribute('font-family', 'sans-serif');
-      text.textContent = `${sec.name.toUpperCase()} (${sec.bar_count}b)`;
-      elSvgGrid.appendChild(text);
-
-      // Section Interactive Hit-Rect
-      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', String(startX));
-      rect.setAttribute('y', '0');
-      rect.setAttribute('width', String(Math.max(1, endX - startX)));
-      rect.setAttribute('height', String(svgHeight));
-      rect.setAttribute('class', 'energy-section-rect');
-
+      const rect = svgEl('rect', { x: startX, y: 0, width: Math.max(1, endX - startX), height: svgHeight,
+                                   class: 'energy-section-rect' });
       rect.addEventListener('mouseenter', (e) => showTooltip(e, sec));
       rect.addEventListener('mousemove', (e) => positionTooltip(e));
       rect.addEventListener('mouseleave', hideTooltip);
-
       elSvgSections.appendChild(rect);
     });
 
-    // Generate Path strings
-    if (points.length > 0) {
-      let pathD = `M ${points[0].x} ${points[0].y}`;
-      for (let i = 1; i < points.length; i++) {
-        pathD += ` L ${points[i].x} ${points[i].y}`;
-      }
-      elSvgStroke.setAttribute('d', pathD);
+    const pathD = points.map((pt, i) => `${i ? 'L' : 'M'} ${pt.x} ${pt.y}`).join(' ');
+    elSvgStroke.setAttribute('d', pathD);
+    elSvgFill.setAttribute('d', `${pathD} L ${svgWidth} ${baseline} L 0 ${baseline} Z`);
+  }
 
-      const fillD = `${pathD} L ${svgWidth} ${svgHeight - paddingBottom} L 0 ${svgHeight - paddingBottom} Z`;
-      elSvgFill.setAttribute('d', fillD);
-    }
+  if (typeof ResizeObserver === 'function') {
+    let lastWidth = 0;
+    new ResizeObserver(entries => {
+      const width = Math.round(entries[0].contentRect.width);
+      if (width && width !== lastWidth) {
+        lastWidth = width;
+        drawEnergyCurve();
+      }
+    }).observe(document.getElementById('energyCurveWrapper'));
   }
 
   // --- Tooltip Handler ---
