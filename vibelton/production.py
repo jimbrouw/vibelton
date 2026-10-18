@@ -1431,19 +1431,24 @@ def _register_scaffold_job(plan: dict[str, Any], job: dict[str, Any], production
 
 
 def _job_for_section(set_path: str | None, genre: str | None, variant_id: str | None, section: str) -> str:
-    found = []
-    for entry in _session_jobs(set_path, genre, variant_id):
+    """The newest scaffold job whose clips for ``section`` are still in the Set.
+
+    Older scaffolds of the same variant may still sit further back in the arrangement; the section the panel
+    shows (and re-scaffolds) is always the newest one, so that is the one a section Undo removes."""
+    production = _ready_state()[1]
+    for entry in reversed(_session_jobs(set_path, genre, variant_id)):
         job = _read(ROOT / "jobs" / (entry["job_id"] + ".json"))
         if not job:
             continue
         job = job_status(entry["job_id"])
-        if any((r.get("section") or "").lower() == section.lower() for r in _placement_records(job, persist=False)):
-            found.append(job["id"])
-    if not found:
-        raise ValueError("No scaffolded clips are recorded for section '%s'" % section)
-    if len(found) > 1:
-        raise ValueError("Section '%s' was scaffolded more than once; roll back by job instead" % section)
-    return found[0]
+        records = [r for r in _placement_records(job, persist=False) if (r.get("section") or "").lower() == section.lower()]
+        if not records:
+            continue
+        verdict = rollback_safety.classify(records, production)
+        present = [item for item in verdict["skipped"] if item["reason"] not in ("moved_or_deleted", "track_missing")]
+        if verdict["removable"] or present:
+            return job["id"]
+    raise ValueError("No scaffolded clips are recorded for section '%s'" % section)
 
 
 def scaffold_sections(genre: str, variant_id: str) -> dict[str, Any]:

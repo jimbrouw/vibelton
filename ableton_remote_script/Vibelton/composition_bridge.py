@@ -39,6 +39,14 @@ except ImportError:
     Live = None
 
 
+# Live ticks to wait for current_song_time to read back as requested before a cue toggle is refused.
+_LOCATOR_SEEK_ATTEMPTS = 8
+
+
+def _cue_summary(cues):
+    return '[%s]' % ', '.join('%r at beat %g' % (cue['name'], cue['time']) for cue in cues) if cues else 'nothing'
+
+
 def _production_complete_callback(finish, complete, failed):
     try:
         finish()
@@ -565,88 +573,123 @@ class CompositionBridge:
         return track
 
     def _production_set_locator(self, time_value, name):
-        song = self.song()
-        original_time = float(song.current_song_time)
-        try:
-            song.current_song_time = float(time_value)
-            existing = [cue for cue in song.cue_points if abs(float(cue.time) - float(time_value)) < .00001]
-            if existing:
-                raise RuntimeError('A locator already exists at the requested time')
-            song.set_or_delete_cue()
-            created = [cue for cue in song.cue_points if abs(float(cue.time) - float(time_value)) < .00001]
-            if len(created) != 1:
-                raise RuntimeError('Locator creation readback did not match')
-            created[0].name = name
-            if str(created[0].name) != name:
-                raise RuntimeError('Locator name readback did not match')
-        finally:
-            song.current_song_time = original_time
+        self._production_locators_sync([(time_value, name)], 'set')
 
     def _production_delete_locator(self, time_value, name):
-        song = self.song()
-        original_time = float(song.current_song_time)
-        try:
-            song.current_song_time = float(time_value)
-            existing = [cue for cue in song.cue_points if abs(float(cue.time) - float(time_value)) < .00001 and str(cue.name) == name]
-            if len(existing) != 1:
-                raise RuntimeError('Expected template locator is missing or changed')
-            song.set_or_delete_cue()
-            if any(abs(float(cue.time) - float(time_value)) < .00001 for cue in song.cue_points):
-                raise RuntimeError('Locator deletion readback did not match')
-        finally:
-            song.current_song_time = original_time
+        self._production_locators_sync([(time_value, name)], 'delete')
 
-    def _production_locators_async(self, locators, operation, complete, failed):
-        """Let Live settle its song position and cue-point selection between steps."""
+    def _production_locators_sync(self, locators, operation, trace=None):
+        """The cue engine without schedule_message: every step runs immediately."""
+        errors = []
+        self._production_locators_async(locators, operation, lambda: None, errors.append, trace, immediate=True)
+        if errors:
+            raise errors[0]
+
+    def _production_locators_async(self, locators, operation, complete, failed, trace=None, immediate=False):
+        """Create or delete cues one at a time, letting Live settle between steps.
+
+        ``set_or_delete_cue`` toggles a cue at the playhead, so each step first
+        confirms that Live really moved the playhead to the requested beat and
+        then checks the whole cue list: exactly one cue added (or removed) at
+        that beat, and nothing else changed.  ``trace`` collects what was seen.
+        """
         song = self.song()
+        eps = .00001
+        log = trace if trace is not None else []
+        if immediate or not callable(getattr(self, 'schedule_message', None)):
+            defer = lambda callback: callback()
+        else:
+            defer = lambda callback: self.schedule_message(1, callback)
         original_time = float(song.current_song_time)
         index = [0]
+        attempts = [0]
+
+        def restore():
+            # Live refuses to seek behind the song length, and the user's playhead may be parked past the end.
+            try:
+                target = max(0.0, min(original_time, float(getattr(song, 'song_length', original_time))))
+                if abs(float(song.current_song_time) - target) > eps:
+                    song.current_song_time = target
+            except Exception as exc:
+                log.append({'op': 'restore', 'error': str(exc)})
 
         def fail(exc):
-            try:
-                song.current_song_time = original_time
-            finally:
-                failed(exc)
+            restore()
+            failed(exc)
 
-        def verify():
+        def begin():
             try:
-                time_value, name = locators[index[0]]
-                matches = [cue for cue in song.cue_points if abs(float(cue.time) - float(time_value)) < .00001]
-                if operation == 'set':
-                    if len(matches) != 1:
-                        raise RuntimeError('Locator creation readback did not match')
-                    matches[0].name = name
-                    if str(matches[0].name) != name:
-                        raise RuntimeError('Locator name readback did not match')
-                elif len(matches) != 0:
-                    raise RuntimeError('Locator deletion readback did not match')
-                index[0] += 1
-                if index[0] == len(locators):
-                    song.current_song_time = original_time
-                    complete()
-                else:
-                    begin()
+                if getattr(song, 'is_playing', False):
+                    raise RuntimeError('Stop playback first: Live places cues at the moving playhead while it plays')
+                time_value = float(locators[index[0]][0])
+                length = float(getattr(song, 'song_length', time_value))
+                if time_value > length + eps:
+                    raise RuntimeError('Locator at beat %g is beyond the song length (beat %g)' % (time_value, length))
+                attempts[0] = 0
+                song.current_song_time = time_value
+                defer(mutate)
             except Exception as exc:
                 fail(exc)
 
         def mutate():
             try:
-                time_value, name = locators[index[0]]
-                matches = [cue for cue in song.cue_points if abs(float(cue.time) - float(time_value)) < .00001]
+                time_value, name = float(locators[index[0]][0]), locators[index[0]][1]
+                observed = float(song.current_song_time)
+                if abs(observed - time_value) >= eps:
+                    attempts[0] += 1
+                    if attempts[0] < _LOCATOR_SEEK_ATTEMPTS:
+                        # Wait for a slow seek to land; re-issue it once in case Live dropped it.
+                        if attempts[0] == _LOCATOR_SEEK_ATTEMPTS // 2:
+                            song.current_song_time = time_value
+                        defer(mutate)
+                        return
+                    log.append({'op': operation, 'time': time_value, 'name': name, 'song_time': observed,
+                                'seek_ticks': attempts[0], 'toggled': False})
+                    raise RuntimeError('Live did not move the playhead to beat %g (it reads %g); no cue was changed'
+                                       % (time_value, observed))
+                before = self._production_locators()
+                matches = [cue for cue in before if abs(cue['time'] - time_value) < eps]
                 if operation == 'set':
                     if matches:
                         raise RuntimeError('A locator already exists at the requested time')
-                elif len([cue for cue in matches if str(cue.name) == name]) != 1:
+                elif len([cue for cue in matches if cue['name'] == name]) != 1:
                     raise RuntimeError('Expected template locator is missing or changed')
+                step = {'op': operation, 'time': time_value, 'name': name, 'song_time': observed,
+                        'seek_ticks': attempts[0], 'cues_before': before, 'toggled': True}
+                log.append(step)
                 song.set_or_delete_cue()
-                self.schedule_message(1, verify)
+                defer(lambda: verify(step))
             except Exception as exc:
                 fail(exc)
 
-        def begin():
+        def verify(step):
             try:
-                song.current_song_time = float(locators[index[0]][0])
-                self.schedule_message(1, mutate)
+                time_value, name = step['time'], step['name']
+                before = step['cues_before']
+                after = self._production_locators()
+                step['cues_after'] = after
+                step['song_time_after'] = float(song.current_song_time)
+                added = [cue for cue in after if cue not in before]
+                removed = [cue for cue in before if cue not in after]
+                if operation == 'set':
+                    if removed or len(added) != 1 or abs(added[0]['time'] - time_value) >= eps:
+                        raise RuntimeError('Locator creation readback did not match: asked for beat %g, Live added %s '
+                                           'and removed %s' % (time_value, _cue_summary(added), _cue_summary(removed)))
+                    cue = [item for item in song.cue_points
+                           if abs(float(item.time) - time_value) < eps and str(item.name) == added[0]['name']][0]
+                    cue.name = name
+                    if str(cue.name) != name:
+                        raise RuntimeError('Locator name readback did not match')
+                elif (added or len(removed) != 1 or abs(removed[0]['time'] - time_value) >= eps or
+                      removed[0]['name'] != name):
+                    raise RuntimeError('Locator deletion readback did not match: asked to remove beat %g, Live added %s '
+                                       'and removed %s' % (time_value, _cue_summary(added), _cue_summary(removed)))
+                index[0] += 1
+                if index[0] == len(locators):
+                    restore()
+                    complete()
+                else:
+                    begin()
             except Exception as exc:
                 fail(exc)
 
@@ -658,10 +701,23 @@ class CompositionBridge:
         self._locator_probe_passed = False
         name = 'VIBELTON_PROBE'
         original = self._production_locators()
+        trace = []
+        cues = list(getattr(song, 'cue_points', []))
+        diagnostics = {
+            'path': 'async' if callable(getattr(self, 'schedule_message', None)) else 'sync',
+            'song_length': float(getattr(song, 'song_length', 0.0)),
+            'is_playing': bool(getattr(song, 'is_playing', False)),
+            'start_song_time': float(song.current_song_time),
+            'cues_at_start': original,
+            # What this Live build exposes, to look for a better cue API than the playhead toggle.
+            'api': {'song': sorted(attr for attr in dir(song) if 'cue' in attr.lower()),
+                    'cue_point': sorted(attr for attr in dir(cues[0]) if not attr.startswith('_')) if cues else []},
+            'trace': trace,
+        }
         if not callable(getattr(song, 'set_or_delete_cue', None)):
             failed(RuntimeError('This Live build has no cue API'))
             return
-        length = float(getattr(song, 'song_length', 0.0))
+        length = diagnostics['song_length']
         taken = [float(cue['time']) for cue in original]
         free = [t for t in (4.0, 8.0, 12.0, 16.0, 32.0)
                 if t <= length and all(abs(t - other) > .00001 for other in taken)]
@@ -671,18 +727,7 @@ class CompositionBridge:
         probe_time = free[0]
 
         def run(operation, done, fail):
-            specs = [(probe_time, name)]
-            if callable(getattr(self, 'schedule_message', None)):
-                self._production_locators_async(specs, operation, done, fail)
-                return
-            try:
-                if operation == 'set':
-                    self._production_set_locator(probe_time, name)
-                else:
-                    self._production_delete_locator(probe_time, name)
-                done()
-            except Exception as exc:
-                fail(exc)
+            self._production_locators_async([(probe_time, name)], operation, done, fail, trace)
 
         def fail(exc):
             self._locator_probe_passed = False
@@ -690,40 +735,34 @@ class CompositionBridge:
             def report(cleanup_error=None):
                 # What the Set holds now that was not there before the probe (empty = nothing stray).
                 leftover = [cue for cue in self._production_locators() if cue not in original]
-                probe = {'passed': False, 'time': probe_time, 'error': str(exc), 'leftover_cues': leftover,
-                         'cleanup_attempted': bool(stray)}
+                probe = dict(diagnostics, passed=False, time=probe_time, error=str(exc), leftover_cues=leftover,
+                             cleanup_attempted=bool(stray), end_song_time=float(song.current_song_time))
                 if cleanup_error is not None:
                     probe['cleanup_error'] = str(cleanup_error)
                 result.update(locator_probe=probe)
                 failed(exc)
 
-            # One best-effort delete of any cue the probe left behind (named VIBELTON_PROBE, or created but never
-            # named because it landed off target). Cues you named yourself are never touched.
-            stray = [cue for cue in self._production_locators() if cue['name'] in (name, '') and cue not in original]
+            # One best-effort delete of any cue the probe left behind: named VIBELTON_PROBE, or created but never
+            # named because it landed off target (Live leaves those blank or numbered "1", "2"...). Cues you named
+            # yourself are never touched.
+            stray = [cue for cue in self._production_locators()
+                     if cue not in original and (cue['name'] in (name, '') or cue['name'].isdigit())]
             if not stray:
                 report()
                 return
             specs = [(float(cue['time']), cue['name']) for cue in stray]
-            if callable(getattr(self, 'schedule_message', None)):
-                try:
-                    self._production_locators_async(specs, 'delete', report, lambda cleanup_exc: report(cleanup_exc))
-                except Exception as cleanup_exc:
-                    report(cleanup_exc)
-                return
-            cleanup_error = None
-            for time_value, cue_name in specs:
-                try:
-                    self._production_delete_locator(time_value, cue_name)
-                except Exception as cleanup_exc:
-                    cleanup_error = cleanup_exc
-            report(cleanup_error)
+            try:
+                self._production_locators_async(specs, 'delete', report, report, trace)
+            except Exception as cleanup_exc:
+                report(cleanup_exc)
 
         def deleted():
             try:
                 if self._production_locators() != original:
                     raise RuntimeError('The cue list differs from the original after the probe cleaned up')
                 self._locator_probe_passed = True
-                result.update(locator_probe={'passed': True, 'time': probe_time, 'name': name})
+                result.update(locator_probe=dict(diagnostics, passed=True, time=probe_time, name=name,
+                                                 end_song_time=float(song.current_song_time)))
                 complete()
             except Exception as exc:
                 fail(exc)

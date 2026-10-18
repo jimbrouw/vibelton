@@ -45,6 +45,61 @@ class StickyDeleteSong(ProbeSong):
         return super().set_or_delete_cue()
 
 
+class GuardedSong(ProbeSong):
+    """Like Live: seeking beyond song_length raises, and the playhead can already sit past the end."""
+
+    def __init__(self, start: float = 0.0) -> None:
+        super().__init__()
+        self.__dict__['_time'] = float(start)
+
+    @property
+    def current_song_time(self) -> float:
+        return self.__dict__.get('_time', 0.0)
+
+    @current_song_time.setter
+    def current_song_time(self, value: float) -> None:
+        if float(value) > self.song_length:
+            raise RuntimeError('Cannot set the Songtime behind the Songlength')
+        self.__dict__['_time'] = float(value)
+
+
+class LaggingSeekSong(GuardedSong):
+    """A seek only takes effect after ``lag`` Live ticks; the cue toggle uses the real (old) position."""
+
+    lag = 2
+
+    def __init__(self, start: float = 0.0) -> None:
+        super().__init__(start)
+        self.__dict__['_pending'] = None
+
+    @property
+    def current_song_time(self) -> float:
+        return self.__dict__['_time']
+
+    @current_song_time.setter
+    def current_song_time(self, value: float) -> None:
+        if float(value) > self.song_length:
+            raise RuntimeError('Cannot set the Songtime behind the Songlength')
+        self.__dict__['_pending'] = [float(value), self.lag]
+
+    def tick(self) -> None:
+        pending = self.__dict__['_pending']
+        if pending is not None:
+            pending[1] -= 1
+            if pending[1] <= 0:
+                self.__dict__['_time'], self.__dict__['_pending'] = pending[0], None
+
+
+class DefaultNamedDriftSong(DriftingSong):
+    """The drifted cue gets Live's default numeric name, as seen in Live 12.3.2 ("1")."""
+
+    def set_or_delete_cue(self) -> None:
+        count = len(self.cue_points)
+        super().set_or_delete_cue()
+        if len(self.cue_points) > count:
+            self.cue_points[-1].name = '1'
+
+
 class BridgeMarkerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -156,6 +211,65 @@ class BridgeMarkerTests(unittest.TestCase):
         self.song = DriftingSong()
         self.run_probe()
         self.assertFalse(self.capability())
+
+    def ticking(self) -> None:
+        def schedule(_ticks, callback):
+            if hasattr(self.song, 'tick'):
+                self.song.tick()
+            callback()
+        self.bridge.schedule_message = schedule
+
+    def test_probe_passes_when_the_playhead_starts_beyond_the_song_end(self) -> None:
+        # Live 12.3.2 run 1: restoring a playhead parked past the end raised "behind the Songlength".
+        self.song = GuardedSong(start=500.0)
+        self.ticking()
+        result = self.run_probe()
+        self.assertEqual('Applied', result['status'], result.get('error'))
+        self.assertEqual([], self.song.cue_points)
+        self.assertLessEqual(self.song.current_song_time, self.song.song_length)
+
+    def test_probe_waits_until_live_has_really_moved_the_playhead(self) -> None:
+        self.song = LaggingSeekSong(start=40.0)
+        self.ticking()
+        result = self.run_probe()
+        self.assertEqual('Applied', result['status'], result.get('error'))
+        self.assertEqual([], self.song.cue_points)
+
+    def test_a_playhead_that_never_moves_fails_before_any_cue_is_toggled(self) -> None:
+        self.song = LaggingSeekSong(start=40.0)
+        self.song.lag = 10 ** 6
+        self.ticking()
+        result = self.run_probe()
+        self.assertEqual('Failed', result['status'])
+        self.assertIn('playhead', result['error'])
+        self.assertEqual([], self.song.cue_points)
+
+    def test_probe_refuses_to_run_while_live_is_playing(self) -> None:
+        self.song.is_playing = True
+        result = self.run_probe()
+        self.assertEqual('Failed', result['status'])
+        self.assertIn('playback', result['error'])
+        self.assertEqual([], self.song.cue_points)
+
+    def test_probe_result_carries_a_trace_of_every_step(self) -> None:
+        self.ticking()
+        probe = self.run_probe()['locator_probe']
+        self.assertEqual('async', probe['path'])
+        self.assertEqual(64.0, probe['song_length'])
+        self.assertEqual(['set', 'delete'], [step['op'] for step in probe['trace']])
+        for step in probe['trace']:
+            self.assertEqual(4.0, step['song_time'])
+            self.assertIn('cues_before', step)
+            self.assertIn('cues_after', step)
+        self.assertIn('set_or_delete_cue', probe['api']['song'])
+
+    def test_off_target_cue_is_named_in_the_error_and_cleaned_up_even_with_a_default_name(self) -> None:
+        self.song = DefaultNamedDriftSong()
+        result = self.run_probe()
+        self.assertEqual('Failed', result['status'])
+        self.assertIn('5', result['error'])   # Live put it at beat 5, not 4
+        self.assertEqual([], result['locator_probe']['leftover_cues'])
+        self.assertEqual([], self.song.cue_points)
 
     def test_probe_rejects_extra_parameters(self) -> None:
         action = self.action([{'type': 'probe_arrangement_locators', 'time': 4.0}])

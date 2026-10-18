@@ -124,6 +124,39 @@ everything ran on the user's real working copy, so audio-specific checks (4, 4b)
   (`leftover_cues: []`, cleanup found and removed a stray cue). Run 2 (playhead at bar 1): Live created the cue at beat 612
   (bar 154, named "1") instead of beat 4, then "Locator deletion readback did not match"; the cleanup did not remove it
   and the user deleted it by hand. `arrangement_locator_readback` stayed false. Consistent with `PHASE_3B_NOTES.md`.
+- **Marker probe follow-up (bridge `2026-10-18-markers-3`, tests only, not yet run in Live):** reading of run 1:
+  the cue was created and deleted fine; only restoring the playhead parked past the song end threw. Run 2's cue at
+  beat 612 points to `set_or_delete_cue` acting on a stale playhead. The cue engine now restores a clamped playhead, refuses
+  to run while Live plays, waits (up to 8 ticks) until `current_song_time` reads back the requested beat before toggling,
+  checks the whole cue list after each toggle (errors name where Live actually put a cue), cleans up Live's numbered
+  default-name strays too, and the probe result carries `path`, `song_length`, `is_playing`, `api` and a per-step `trace`.
+- **Marker probe, bridge `2026-10-18-markers-3`: passed in Live 12.3.2** (job `a02fa5c7`, Set
+  `shape change vibelton-working-copy .als`, transport stopped, playhead at beat 1120, song length 1216, no cues before).
+  Path `async`. Set: playhead read 4.0 with no wait, Live added a cue at beat 4.0 named "1", renamed to `VIBELTON_PROBE`.
+  Delete: the playhead read something other than 4.0 for 4 ticks, then 4.0 once the seek was re-issued; the cue was then
+  removed and the cue list was back to `[]`. `arrangement_locator_readback` became true. This lag explains run 2 above:
+  the old code toggled at the stale position. Live exposes no cue API besides `set_or_delete_cue` (plus jump/listeners).
+  Not yet checked: playhead restore after the job (it still read 4.0 when the job ended).
+- **Full scaffold with markers: passed in Live** (job `31892e21`, same Set, 13 copies, `arrangement_verified: true`,
+  `locators_deferred: false`). Bridge readback and the Live cue list both hold exactly INTRO 1216, GROOVE 1280,
+  MAIN GROOVE 1344, TENSION 1472, BREAKDOWN 1536, DROP 1600, OUTRO 1696 (bars 305, 321, 337, 369, 385, 401, 425), with no
+  other cues. Seen in the Arrangement ruler: seven locators from bar ~305 on, labelled INTRO, GRO…, MAIN GROOVE, TEN…,
+  BRE…, DROP, O… (names truncated by width).
+- **Full Undo with markers: passed in Live** (rollback job `bea3cb3b` of `31892e21`): 13 copies deleted, all 7 markers
+  deleted, `arrangement_rollback_verified: true`. The user then re-scaffolded (job `04e00ad5`, 7 markers again at the same
+  beats).
+- **Section Undo (Groove): failed, then fixed (server only, tests).** The panel said "Section 'Groove' was scaffolded more
+  than once": older scaffolds from earlier runs (jobs `d4b67a1d` at beat 512 and `203f2ff1` at beat 640) are still in the
+  Set. A section Undo now targets the newest scaffold that still has that section's clips in the Set. After a server
+  restart, a dry run reported "Would remove 2 of 2 clips. Would remove 1 section marker." (job `04e00ad5`, clips at beat
+  1280, marker GROOVE at 1280).
+- **Section Undo (Groove) after the fix: passed in Live** (rollback job `0fc1e0a5` of `04e00ad5`): "Removed 2 of 2 clips.
+  Removed 1 section marker.", `arrangement_rollback_verified: true`. Cue list afterwards: INTRO 1216, MAIN GROOVE 1344,
+  TENSION 1472, BREAKDOWN 1536, DROP 1600, OUTRO 1696 (only GROOVE gone); the other 11 clips of `04e00ad5` are still in
+  the Set. The older scaffolds at 512 and 640 were not touched.
+- **Markers, still not verified:** the preview's "Markers in Live" line; a Set holding the user's own cues (the working
+  copy had none); playhead restore after cue jobs; that the probe must be re-run after every Live restart (the gate is
+  per session by design).
 - **Retry button:** pressing Retry did nothing after the server was stopped. The helper's retry handler works when driven
   from outside Max, so the break is somewhere between the page's `window.max.outlet('retry')` and the helper; the cause was
   not found. The helper's watchdog now restarts the server without it.

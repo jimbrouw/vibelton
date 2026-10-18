@@ -14,7 +14,7 @@ QUEUE_DIR = os.path.join(os.path.expanduser("~"), ".vibelton")
 COMMANDS_FILE = os.path.join(QUEUE_DIR, "commands.jsonl")
 EVENTS_FILE = os.path.join(QUEUE_DIR, "events.jsonl")
 STATE_FILE = os.path.join(QUEUE_DIR, "state.json")
-BRIDGE_VERSION = "2026-10-18-markers-2"
+BRIDGE_VERSION = "2026-10-18-markers-3"
 
 
 class Vibelton(AudioBridge, CompositionBridge, ControlSurface):
