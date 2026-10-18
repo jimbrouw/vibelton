@@ -867,3 +867,37 @@ html, body {
 .version-panel code { background: #1c1c1c; padding: 0 4px; border-radius: 2px; user-select: all; }
 .version-panel button { align-self: flex-start; background: #2a2a2a; color: #ddd; border: 1px solid #555; border-radius: 3px; font-size: 10px; padding: 2px 8px; cursor: pointer; }
 @media (max-height: 279px) { .version-info { display: none; } .version-warn { font-size: 9px; padding: 1px 5px; } .version-panel { max-height: 150px; overflow: auto; } }
+
+/* In-page replacement for native <select> pop-ups (Max's jweb cannot show those). */
+.select-menu {
+  position: fixed;
+  z-index: 1000;
+  overflow-y: auto;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--accent-yellow);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.select-menu-item {
+  padding: 3px 10px;
+  color: var(--text-main, #e6e6e6);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.select-menu-item:hover {
+  background-color: rgba(230, 215, 101, 0.18);
+}
+
+.select-menu-item.is-selected {
+  color: var(--accent-yellow);
+  font-weight: 700;
+}
+
+.select-menu-item.is-disabled {
+  color: #666666;
+  cursor: default;
+}

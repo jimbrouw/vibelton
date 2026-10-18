@@ -1193,6 +1193,89 @@
     elBtnPopout.style.display = 'none'; // Hide Pop Out button inside popout window
   }
 
+  // --- In-page menus for <select> ---
+  // Max's jweb delivers clicks but cannot open the native <select> pop-up list, so inside Max (or with
+  // ?selectmenu=1 for testing in a browser) clicking a select opens this menu instead. Choosing an item
+  // sets the select's value and fires a bubbling 'change' event, so existing listeners work unchanged.
+  function installSelectMenus() {
+    let menu = null;
+
+    function close() {
+      if (menu) {
+        menu.remove();
+        menu = null;
+      }
+    }
+
+    function open(select) {
+      menu = document.createElement('div');
+      menu.className = 'select-menu';
+      menu.setAttribute('role', 'listbox');
+      Array.from(select.options).forEach(option => {
+        const item = document.createElement('div');
+        item.className = 'select-menu-item';
+        item.setAttribute('role', 'option');
+        item.classList.toggle('is-selected', option.selected);
+        item.classList.toggle('is-disabled', option.disabled);
+        item.textContent = option.textContent;
+        item.addEventListener('mousedown', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (option.disabled) return;
+          if (select.value !== option.value) {
+            select.value = option.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          close();
+        });
+        menu.appendChild(item);
+      });
+      document.body.appendChild(menu);
+
+      // Below the select if it fits, otherwise wherever there is more room; never off-screen.
+      const rect = select.getBoundingClientRect();
+      const below = window.innerHeight - rect.bottom - 4;
+      const above = rect.top - 4;
+      const natural = menu.scrollHeight;
+      const placeBelow = natural <= below || below >= above;
+      const maxHeight = Math.max(48, placeBelow ? below : above);
+      menu.style.maxHeight = `${maxHeight}px`;
+      menu.style.minWidth = `${rect.width}px`;
+      const height = Math.min(natural, maxHeight);
+      menu.style.top = `${placeBelow ? rect.bottom + 2 : rect.top - 2 - height}px`;
+      menu.style.left = `${Math.max(4, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 4))}px`;
+      // Scroll only the menu itself: scrolling the page would close it.
+      const selected = menu.querySelector('.is-selected');
+      if (selected) menu.scrollTop = Math.max(0, selected.offsetTop - menu.clientHeight / 2);
+    }
+
+    document.addEventListener('mousedown', (event) => {
+      if (menu && menu.contains(event.target)) return;
+      const select = event.target.closest ? event.target.closest('select') : null;
+      const wasOpenFor = menu && menu.dataset.for;
+      close();
+      if (!select || select.disabled) return;
+      event.preventDefault();
+      select.focus({ preventScroll: true });
+      if (wasOpenFor && wasOpenFor === (select.id || select.name || '')) return; // second click closes
+      open(select);
+      menu.dataset.for = select.id || select.name || '';
+    }, true);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') close();
+    });
+    document.addEventListener('scroll', (event) => {
+      if (menu && !menu.contains(event.target)) close();
+    }, true);
+    // No close on window blur: in Max, clicking the panel hands focus back to Live, which blurs the page
+    // straight after the menu opens.
+    window.addEventListener('resize', () => close());
+  }
+
+  if ((window.max && typeof window.max.outlet === 'function') || urlParams.get('selectmenu') === '1') {
+    installSelectMenus();
+  }
+
   // --- Initialization ---
   populateVariantsDropdown();
   refreshAllData();
