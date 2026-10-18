@@ -45,6 +45,7 @@ from .actions import infer_key
 from .music_theory import producer_theory_card
 from .planner import plan
 from .queue import current_state, enqueue, ensure_queue, recent_events, write_event
+from . import arrangements
 from . import composition_service
 from . import production
 from . import samples
@@ -221,6 +222,8 @@ class Handler(BaseHTTPRequestHandler):
                     result = production.overview()
                 elif parsed.path == '/api/production/working-copy':
                     result = production.working_copy_status()
+                elif parsed.path == '/api/production/genres':
+                    result = arrangements.genre_catalogue()
                 elif parsed.path == '/api/production/scaffold-sections':
                     query_params = parse_qs(parsed.query)
                     result = production.scaffold_sections(query_params.get('genre', ['House'])[0],

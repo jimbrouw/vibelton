@@ -40,28 +40,31 @@
     'Ignore / Unknown'
   ];
 
-  const GENRE_VARIANTS_MAP = {
-    'House': [
-      { id: 'club-version', name: 'Club version (4:39)', bars: 144 },
-      { id: 'streaming-edit', name: 'Streaming edit (3:15)', bars: 101 },
-      { id: 'dj-extended-mix', name: 'DJ extended mix (6:00)', bars: 186 }
-    ],
-    'Techno': [
-      { id: 'techno-peak-time', name: 'Peak time (~5:30)', bars: 170 },
-      { id: 'techno-hypnotic', name: 'Hypnotic (~5:00)', bars: 154 },
-      { id: 'techno-extended-dj', name: 'Extended DJ (~6:30)', bars: 201 }
-    ],
-    'Drum & Bass': [
-      { id: 'dnb-rolling-club', name: 'Rolling club (~4:00)', bars: 124 },
-      { id: 'dnb-quick-cut', name: 'Quick cut (~3:00)', bars: 93 },
-      { id: 'dnb-extended-journey', name: 'Extended journey (~5:00)', bars: 155 }
-    ],
-    'UK Garage': [
-      { id: 'ukg-vocal-club', name: 'Vocal club (~4:00)', bars: 124 },
-      { id: 'ukg-compact', name: 'Compact 2-step (~3:00)', bars: 93 },
-      { id: 'ukg-extended-shuffle', name: 'Extended shuffle (~5:00)', bars: 155 }
+  // The genre list comes from GET /api/production/genres. This copy is only used when the server
+  // cannot be reached, so the device still shows the four original structures.
+  const FALLBACK_CATALOGUE = {
+    default_genre: 'House',
+    genres: [
+      { genre: 'House', family: 'House & Disco', bpm_range: [120, 128], default_variant: 'club-version', variants: [
+        { id: 'streaming-edit', name: 'Streaming edit', target_duration: '3:15', target_duration_seconds: 195 },
+        { id: 'club-version', name: 'Club version', target_duration: '4:39', target_duration_seconds: 278.7 },
+        { id: 'dj-extended-mix', name: 'DJ extended mix', target_duration: '6:00', target_duration_seconds: 360 }] },
+      { genre: 'Techno', family: 'Techno & Trance', bpm_range: [125, 140], default_variant: 'techno-peak-time', variants: [
+        { id: 'techno-hypnotic', name: 'Hypnotic', target_duration: '5:00', target_duration_seconds: 300 },
+        { id: 'techno-peak-time', name: 'Peak time', target_duration: '5:30', target_duration_seconds: 330 },
+        { id: 'techno-extended-dj', name: 'Extended DJ', target_duration: '6:30', target_duration_seconds: 390 }] },
+      { genre: 'Drum & Bass', family: 'Breaks & Bass', bpm_range: [170, 180], default_variant: 'dnb-rolling-club', variants: [
+        { id: 'dnb-quick-cut', name: 'Quick cut', target_duration: '3:00', target_duration_seconds: 180 },
+        { id: 'dnb-rolling-club', name: 'Rolling club', target_duration: '4:00', target_duration_seconds: 240 },
+        { id: 'dnb-extended-journey', name: 'Extended journey', target_duration: '5:00', target_duration_seconds: 300 }] },
+      { genre: 'UK Garage', family: 'Breaks & Bass', bpm_range: [128, 136], default_variant: 'ukg-vocal-club', variants: [
+        { id: 'ukg-compact', name: 'Compact 2-step', target_duration: '3:00', target_duration_seconds: 180 },
+        { id: 'ukg-vocal-club', name: 'Vocal club', target_duration: '4:00', target_duration_seconds: 240 },
+        { id: 'ukg-extended-shuffle', name: 'Extended shuffle', target_duration: '5:00', target_duration_seconds: 300 }] }
     ]
   };
+  let genreCatalogue = FALLBACK_CATALOGUE;
+  let lastLabelTempo = null;
 
   // --- DOM Elements ---
   const elConnectionPill = document.getElementById('connectionPill');
@@ -348,51 +351,119 @@
   }
 
   // --- Step 2: Genre Energy Profile & SVG Curve ---
+  function genreEntry(genre = selectedGenre) {
+    return genreCatalogue.genres.find(g => g.genre === genre) || null;
+  }
+
+  function formatSeconds(seconds) {
+    const total = Math.round(Number(seconds) || 0);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+  }
+
+  function liveTempo() {
+    return (liveState && Number(liveState.tempo)) ? Number(liveState.tempo) : null;
+  }
+
+  // Bars and duration for a variant: the server's map for this Set once loaded, otherwise an estimate.
+  function variantFacts(variant) {
+    const planned = genreOptions && genreOptions.genre === selectedGenre && genreOptions.variants
+      ? genreOptions.variants.find(v => v.id === variant.id) : null;
+    if (planned) {
+      return { bars: planned.total_bars, duration: formatSeconds(planned.approximate_duration_seconds) };
+    }
+    const tempo = liveTempo() || 120;
+    return { bars: Math.round(variant.target_duration_seconds * tempo / 240), duration: variant.target_duration };
+  }
+
+  function renderGenreSelect() {
+    elGenreSelect.replaceChildren();
+    const families = [];
+    genreCatalogue.genres.forEach(g => {
+      let group = families.find(f => f.label === g.family);
+      if (!group) {
+        group = document.createElement('optgroup');
+        group.label = g.family || 'Other';
+        families.push(group);
+        elGenreSelect.appendChild(group);
+      }
+      const opt = document.createElement('option');
+      opt.value = g.genre;
+      opt.textContent = g.genre;
+      group.appendChild(opt);
+    });
+    if (!genreEntry()) selectedGenre = genreCatalogue.default_genre || genreCatalogue.genres[0]?.genre || 'House';
+    elGenreSelect.value = selectedGenre;
+  }
+
   function populateVariantsDropdown() {
-    const variants = GENRE_VARIANTS_MAP[selectedGenre] || [];
+    const entry = genreEntry();
+    const variants = entry ? entry.variants : [];
+    if (!variants.some(v => v.id === selectedVariant)) {
+      selectedVariant = (entry && entry.default_variant) || variants[0]?.id || '';
+    }
     elVariantSelect.innerHTML = '';
     variants.forEach(v => {
       const opt = document.createElement('option');
       opt.value = v.id;
-      opt.textContent = v.name;
+      opt.textContent = `${v.name} (${variantFacts(v).duration})`;
       if (v.id === selectedVariant) opt.selected = true;
       elVariantSelect.appendChild(opt);
     });
-    if (!variants.some(v => v.id === selectedVariant)) {
-      selectedVariant = variants[0]?.id || '';
-    }
     updateScaffoldButtonLabel();
   }
 
   function updateScaffoldButtonLabel() {
-    const variants = GENRE_VARIANTS_MAP[selectedGenre] || [];
-    const curr = variants.find(v => v.id === selectedVariant);
-    const duration = curr ? curr.name.split('(')[1]?.replace(')', '') || '4-Min' : '4-Min';
-    elScaffoldBtnLabel.dataset.whole = `Scaffold ${duration} Arrangement`;
+    const entry = genreEntry();
+    const curr = entry ? entry.variants.find(v => v.id === selectedVariant) : null;
+    const facts = curr ? variantFacts(curr) : { bars: 144, duration: '4:39' };
+    elScaffoldBtnLabel.dataset.whole = `Scaffold ${facts.duration} Arrangement`;
     elScaffoldBtnLabel.textContent = selectedScope ? elScaffoldBtnLabel.textContent : elScaffoldBtnLabel.dataset.whole;
 
-    const bars = curr ? curr.bars : 144;
-    const tempo = (liveState && liveState.tempo) ? Math.round(liveState.tempo) : 119;
+    const tempo = liveTempo();
+    const shownTempo = tempo ? Math.round(tempo) : 119;
     const variantMetaSpan = document.getElementById('variantMetaSpan');
     if (variantMetaSpan) {
-      variantMetaSpan.textContent = `${selectedGenre} · ${bars} bars (${duration}) · 7 arrangement sections`;
+      let tempoNote = '';
+      if (entry && entry.bpm_range) {
+        const [low, high] = entry.bpm_range;
+        const outside = tempo && (tempo < low - 0.5 || tempo > high + 0.5);
+        tempoNote = outside ? ` · usually ${low}–${high} BPM (your Set: ${shownTempo})` : ` · usually ${low}–${high} BPM`;
+      }
+      variantMetaSpan.textContent = `${selectedGenre} · ${facts.bars} bars (${facts.duration}) · 7 sections${tempoNote}`;
     }
     const statDuration = document.getElementById('statDuration');
     if (statDuration) {
-      statDuration.textContent = `${bars} bars (${duration} @ ${tempo} BPM)`;
+      statDuration.textContent = `${facts.bars} bars (${facts.duration} @ ${shownTempo} BPM)`;
     }
     const statStructure = document.getElementById('statStructure');
     if (statStructure) {
-      statStructure.textContent = `${selectedGenre} (${curr?.name.split(' (')[0] || 'Club version'})`;
+      statStructure.textContent = `${selectedGenre} (${curr ? curr.name : 'Club version'})`;
     }
+  }
+
+  async function loadGenreCatalogue() {
+    try {
+      const catalogue = await api('/api/production/genres');
+      if (catalogue && Array.isArray(catalogue.genres) && catalogue.genres.length) {
+        genreCatalogue = catalogue;
+      }
+    } catch (err) {
+      console.warn('Failed to fetch the genre list from the server, using the built-in list', err);
+    }
+    renderGenreSelect();
+    populateVariantsDropdown();
   }
 
   async function loadGenreOptions() {
     try {
-      genreOptions = await api(`/api/production/arrangement-options`, 'POST', {
+      const requestedGenre = selectedGenre;
+      const options = await api(`/api/production/arrangement-options`, 'POST', {
         request_id: crypto.randomUUID(),
-        genre: selectedGenre
+        genre: requestedGenre
       });
+      if (requestedGenre !== selectedGenre) return; // the user switched genre while this was loading
+      genreOptions = options;
+      populateVariantsDropdown();
       drawEnergyCurve();
     } catch (err) {
       console.warn('Failed to fetch arrangement options from server, using fallback', err);
@@ -1115,6 +1186,10 @@
       if (isConnected) {
         elConnectionPill.className = 'connection-pill is-connected';
         elConnectionText.textContent = `● Connected ${tempo} BPM`;
+        if (tempo !== lastLabelTempo) {
+          lastLabelTempo = tempo;
+          updateScaffoldButtonLabel(); // the tempo hint and bar estimate depend on the Set's tempo
+        }
       } else {
         elConnectionPill.className = 'connection-pill is-offline';
         elConnectionText.textContent = `Offline (Live closed)`;
@@ -1167,8 +1242,12 @@
 
   elGenreSelect.addEventListener('change', (e) => {
     selectedGenre = e.target.value;
+    genreOptions = null;
+    selectedVariant = genreEntry()?.default_variant || '';
     populateVariantsDropdown();
+    drawEnergyCurve();
     loadGenreOptions();
+    refreshScaffoldedSections();
   });
 
   elVariantSelect.addEventListener('change', (e) => {
@@ -1211,7 +1290,16 @@
       menu = document.createElement('div');
       menu.className = 'select-menu';
       menu.setAttribute('role', 'listbox');
+      let lastGroup = null;
       Array.from(select.options).forEach(option => {
+        const group = option.parentElement && option.parentElement.tagName === 'OPTGROUP' ? option.parentElement : null;
+        if (group && group !== lastGroup) {
+          const header = document.createElement('div');
+          header.className = 'select-menu-group';
+          header.textContent = group.label;
+          menu.appendChild(header);
+        }
+        lastGroup = group;
         const item = document.createElement('div');
         item.className = 'select-menu-item';
         item.setAttribute('role', 'option');
@@ -1277,9 +1365,10 @@
   }
 
   // --- Initialization ---
+  renderGenreSelect();
   populateVariantsDropdown();
   refreshAllData();
-  loadGenreOptions();
+  loadGenreCatalogue().then(loadGenreOptions);
 
   refreshVersions();
   setInterval(refreshVersions, 30000);

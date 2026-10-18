@@ -177,6 +177,10 @@ class ArrangerCompanionTests(unittest.TestCase):
 
         # JS checks
         self.assertIn('executeScaffold', js)
+        # The genre list comes from the server; the built-in list is only a fallback.
+        self.assertIn('/api/production/genres', js)
+        self.assertNotIn('GENRE_VARIANTS_MAP', js)
+        self.assertIn('select-menu-group', css)
         self.assertIn('executeRollback', js)
         self.assertIn('drawEnergyCurve', js)
 

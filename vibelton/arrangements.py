@@ -10,7 +10,7 @@ import copy
 import math
 from typing import Any
 
-from . import song_sketch
+from . import genre_dna, song_sketch
 
 
 HOUSE_TEMPLATE_FAMILY_ID = "classic-house-arrangements/v1"
@@ -22,6 +22,15 @@ OTHER_GENRE_VARIANTS = {
     "UK Garage": ("ukg-compact", "ukg-vocal-club", "ukg-extended-shuffle"),
     "Hip Hop": ("hiphop-tight-beat", "hiphop-verse-hook", "hiphop-instrumental"),
     "Disco / Nu-disco": ("disco-radio-groove", "disco-club-lift", "disco-extended-mix"),
+    "Progressive House": ("prog-radio-edit", "prog-club-journey", "prog-extended-mix"),
+    "Afro House": ("afro-radio-edit", "afro-club-groove", "afro-extended-ritual"),
+    "Trance": ("trance-radio-edit", "trance-epic-breakdown", "trance-club-mix"),
+    "Amapiano": ("piano-radio-edit", "piano-log-drum-groove", "piano-extended-mix"),
+    "Trap": ("trap-short-hook", "trap-verse-hook", "trap-extended-beat"),
+    "Pop": ("pop-radio-edit", "pop-album-version", "pop-dance-remix"),
+    "Boom Bap": ("boombap-beat-tape", "boombap-two-verses", "boombap-long-verses"),
+    "Grime": ("grime-vocal-track", "grime-instrumental", "grime-clash-extended"),
+    "Hyperpop": ("hyperpop-short-burst", "hyperpop-single", "hyperpop-extended-chaos"),
 }
 SUPPORTED_GENRES = ("House", "Drum & Bass", *OTHER_GENRE_VARIANTS)
 GENRE_VARIANTS = {"House": VARIANT_IDS, "Drum & Bass": DNB_VARIANT_IDS, **OTHER_GENRE_VARIANTS}
@@ -382,7 +391,194 @@ _OTHER_GENRES = {
             ("disco-extended-mix", "Extended mix", 300, (24, 32, 48, 32, 16, 48, 24), 0),
         ),
     },
+    "Progressive House": {
+        "sections": (
+            ("intro", "DJ intro", 2, "Open with a long, mixable pulse", ("Kick", "Hats", "Percussion", "Atmosphere"), "Add one percussion layer per phrase."),
+            ("build", "Groove build", 4, "Let the bass and chords arrive slowly", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords"), "Open the chords over eight bars rather than cutting them in."),
+            ("first_lift", "First lift", 6, "State the main motif without the full peak", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Atmosphere"), "Hint at the hook; save its full statement."),
+            ("breakdown", "Breakdown", 3, "Strip back to the emotional core", ("Chords", "Lead", "Hook", "Atmosphere", "Vocal"), "Pull the kick and bass; let the pads breathe."),
+            ("rebuild", "Rebuild", 6, "Rebuild tension under the motif", ("Kick", "Hats", "Bass", "Hook", "Atmosphere", "FX / Risers"), "Bring the drums back in stages under a riser."),
+            ("peak", "Peak", 9, "Deliver the full hook over the full groove", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Hook", "Atmosphere", "Vocal", "FX / Risers"), "Recombine every existing layer."),
+            ("outro", "DJ outro", 3, "Hand over smoothly", ("Kick", "Hats", "Percussion", "Bass", "Atmosphere"), "Remove melodic layers first, then the bass."),
+        ),
+        "variants": (
+            ("prog-radio-edit", "Radio edit", 225, (8, 16, 24, 16, 8, 32, 8), 0),
+            ("prog-club-journey", "Club journey", 330, (24, 32, 32, 24, 24, 48, 24), 1),
+            ("prog-extended-mix", "Extended mix", 420, (32, 48, 48, 32, 32, 48, 32), 0),
+        ),
+    },
+    "Afro House": {
+        "sections": (
+            ("intro", "Percussion intro", 2, "Set the polyrhythm before anything else", ("Kick", "Hats", "Percussion"), "Layer shakers and congas over the kick."),
+            ("groove", "Groove", 5, "Lock the bass into the percussion", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Atmosphere"), "Keep the bass sparse and syncopated."),
+            ("chant", "Vocal chant", 7, "Introduce the call or chant", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Vocal"), "Let the vocal sit on top of the percussion bed."),
+            ("drum_break", "Drum break", 4, "Feature the percussion on its own", ("Kick", "Hats", "Percussion", "Atmosphere"), "Pull harmony and bass; keep the floor moving."),
+            ("build", "Build", 6, "Gather the melodic layers", ("Hats", "Percussion", "Bass", "Chords", "Hook", "FX / Risers"), "Drop the kick for the last phrase."),
+            ("main", "Main section", 9, "Bring every layer together", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Hook", "Vocal", "Atmosphere"), "Return with the kick on the downbeat."),
+            ("outro", "Percussion outro", 3, "Fade back to the rhythm", ("Kick", "Hats", "Percussion", "Atmosphere"), "Remove the vocal and melody, then the bass."),
+        ),
+        "variants": (
+            ("afro-radio-edit", "Radio edit", 240, (8, 16, 24, 8, 16, 32, 8), 0),
+            ("afro-club-groove", "Club groove", 360, (24, 32, 32, 16, 16, 48, 24), 1),
+            ("afro-extended-ritual", "Extended ritual", 450, (32, 48, 48, 24, 24, 48, 32), 0),
+        ),
+    },
+    "Trance": {
+        "sections": (
+            ("intro", "DJ intro", 2, "Give a mixable rolling pulse", ("Kick", "Hats", "Percussion", "Atmosphere"), "Introduce the off-beat bass hint late in the intro."),
+            ("build", "Build", 5, "Establish the rolling bass groove", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "FX / Risers"), "Open a filter across the phrase."),
+            ("first_peak", "First peak", 7, "Present the lead over the full groove", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead"), "Tease the main melody without the full anthem."),
+            ("breakdown", "Breakdown", 2, "Spotlight the chords and main melody", ("Chords", "Lead", "Hook", "Atmosphere", "Vocal"), "Drop all drums; let the melody carry the moment."),
+            ("climax_build", "Climax build", 6, "Rebuild tension before the anthem", ("Snare / Clap", "Chords", "Hook", "Atmosphere", "FX / Risers"), "Snare roll and riser into a short silence."),
+            ("climax", "Climax", 9, "Full anthem return", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Hook", "Atmosphere", "Vocal", "FX / Risers"), "Land the kick and full melody together."),
+            ("outro", "DJ outro", 3, "Provide a steady mix-out", ("Kick", "Hats", "Percussion", "Bass", "Atmosphere"), "Remove the lead and chords in stages."),
+        ),
+        "variants": (
+            ("trance-radio-edit", "Radio edit", 210, (8, 16, 24, 16, 8, 32, 8), 0),
+            ("trance-epic-breakdown", "Epic breakdown", 330, (24, 24, 32, 48, 24, 48, 24), 1),
+            ("trance-club-mix", "Club mix", 420, (32, 32, 48, 32, 16, 64, 32), 0),
+        ),
+    },
+    "Amapiano": {
+        "sections": (
+            ("intro", "Keys intro", 2, "Set the mood with keys and shakers", ("Hats", "Percussion", "Chords", "Atmosphere"), "Leave out the log drum to save it."),
+            ("log_drum", "Log drum entry", 5, "Introduce the log drum bass", ("Kick", "Hats", "Percussion", "Bass", "Chords"), "Let the log drum answer the keys."),
+            ("hook", "Vocal hook", 7, "Present the vocal or melodic hook", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Hook", "Vocal"), "Keep the log drum pattern steady under the vocal."),
+            ("switch", "Log drum switch", 6, "Change the log drum conversation", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Lead"), "Thin the keys so the bass variation leads."),
+            ("break", "Keys break", 3, "Breathing room on keys and vocal", ("Chords", "Vocal", "Atmosphere", "Hook"), "Pull the drums and log drum."),
+            ("final_groove", "Final groove", 9, "Return with the fullest groove", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Hook", "Vocal", "Atmosphere"), "Bring the log drum back on the downbeat."),
+            ("outro", "Outro", 3, "Wind down on the groove", ("Hats", "Percussion", "Bass", "Chords"), "Remove the vocal, then the drums."),
+        ),
+        "variants": (
+            ("piano-radio-edit", "Radio edit", 225, (8, 16, 24, 16, 8, 24, 8), 0),
+            ("piano-log-drum-groove", "Log drum groove", 330, (16, 24, 32, 32, 16, 40, 16), 1),
+            ("piano-extended-mix", "Extended mix", 420, (24, 32, 40, 40, 24, 48, 24), 0),
+        ),
+    },
+    "Trap": {
+        "sections": (
+            ("intro", "Intro", 2, "Set the mood with the melody loop", ("Chords", "Lead", "Atmosphere"), "Filter the melody; tease the hats."),
+            ("hook_one", "Hook", 8, "Open with the hook and the 808", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Lead", "Hook", "Vocal"), "Drop the 808 on the first downbeat."),
+            ("verse_one", "Verse one", 5, "Make room for the vocal", ("Kick", "Snare / Clap", "Hats", "Bass", "Lead", "Vocal"), "Thin the melody; keep the hat rolls moving."),
+            ("hook_two", "Hook two", 8, "Return to the refrain", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Lead", "Hook", "Vocal"), "Mute the 808 for the bar before the hook."),
+            ("verse_two", "Verse two", 5, "Change the backing for contrast", ("Kick", "Snare / Clap", "Hats", "Bass", "Chords", "Vocal"), "Swap the melody for a different existing layer."),
+            ("final_hook", "Final hook", 9, "Give the refrain its last and biggest return", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Hook", "Vocal", "FX / Risers"), "Use the fullest existing combination."),
+            ("outro", "Outro", 2, "Close on the melody", ("Chords", "Lead", "Atmosphere"), "Drop the drums and 808; let the loop ring out."),
+        ),
+        "variants": (
+            ("trap-short-hook", "Short hook-first", 150, (4, 16, 16, 16, 8, 16, 4), 0),
+            ("trap-verse-hook", "Verse / hook", 200, (8, 16, 32, 16, 24, 16, 8), 1),
+            ("trap-extended-beat", "Extended beat", 260, (8, 24, 32, 24, 32, 24, 16), 0),
+        ),
+    },
+    "Pop": {
+        "sections": (
+            ("intro", "Intro", 2, "Hook the listener fast", ("Chords", "Hook", "Atmosphere"), "Keep it short; preview the hook."),
+            ("verse", "Verse", 4, "Tell the story over a lighter backing", ("Kick", "Hats", "Bass", "Chords", "Vocal"), "Leave the top end clear for the vocal."),
+            ("pre_chorus", "Pre-chorus", 6, "Lift towards the chorus", ("Kick", "Snare / Clap", "Hats", "Bass", "Chords", "Vocal", "FX / Risers"), "Build with a riser or drum fill into the chorus."),
+            ("chorus", "Chorus", 8, "Deliver the main hook", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Hook", "Vocal"), "Widen the arrangement on the downbeat."),
+            ("bridge", "Bridge", 4, "Offer contrast before the last chorus", ("Chords", "Lead", "Atmosphere", "Vocal"), "Strip the drums; change the backing."),
+            ("final_chorus", "Final chorus", 9, "The biggest version of the chorus", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Hook", "Atmosphere", "Vocal", "FX / Risers"), "Add every existing layer for the last pass."),
+            ("outro", "Outro", 3, "End cleanly", ("Chords", "Hook", "Atmosphere", "Vocal"), "Strip back to the hook and let it ring."),
+        ),
+        "variants": (
+            ("pop-radio-edit", "Radio edit", 180, (4, 16, 8, 16, 8, 16, 4), 0),
+            ("pop-album-version", "Album version", 225, (8, 24, 8, 24, 8, 24, 8), 0),
+            ("pop-dance-remix", "Dance remix", 270, (16, 16, 8, 24, 16, 32, 16), 1),
+        ),
+    },
+    "Boom Bap": {
+        "sections": (
+            ("intro", "Sample intro", 2, "Play the chopped sample before the drums", ("Chords", "Hook", "Atmosphere"), "Let the sample loop once, then drop the break on the one."),
+            ("verse_one", "Verse one", 5, "A dusty, steady break under the first verse", ("Kick", "Snare / Clap", "Hats", "Bass", "Chords", "Vocal"), "Keep the break unchanged; the vocal carries the verse."),
+            ("hook_one", "Hook", 7, "Make the refrain stand out", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Hook", "Vocal"), "Add the hook layer or a scratch on the refrain."),
+            ("verse_two", "Verse two", 6, "Flip the backing for the second verse", ("Kick", "Snare / Clap", "Hats", "Bass", "Lead", "Vocal"), "Swap the sample for a different existing layer."),
+            ("hook_two", "Final hook", 8, "Last and fullest refrain", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Hook", "Vocal"), "Use the fullest existing combination."),
+            ("scratch_break", "Scratch break", 4, "Feature the drums and cuts", ("Kick", "Snare / Clap", "Hats", "Percussion", "FX / Risers"), "Drop the sample; let the break and cuts play."),
+            ("outro", "Outro", 2, "Ride the sample out", ("Chords", "Hook", "Atmosphere"), "Pull the drums and let the sample ring."),
+        ),
+        "variants": (
+            ("boombap-beat-tape", "Beat tape", 150, (4, 8, 8, 8, 8, 16, 4), 0),
+            ("boombap-two-verses", "Two verses", 180, (4, 16, 8, 16, 8, 8, 4), 0),
+            ("boombap-long-verses", "Long verses", 225, (8, 24, 8, 24, 8, 8, 4), 1),
+        ),
+    },
+    "Grime": {
+        "sections": (
+            ("intro", "Intro", 2, "Set up the riff over a sparse beat", ("Lead", "Atmosphere", "FX / Risers"), "Tease the riff; save the sub for the drop."),
+            ("drop", "Instrumental drop", 8, "Hit with the sub and the riff", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Lead", "Hook"), "Land the sub on the first downbeat."),
+            ("verse_one", "Verse one", 5, "Clear space for the MC", ("Kick", "Snare / Clap", "Hats", "Bass", "Vocal"), "Strip the riff back to the drums and sub."),
+            ("hook", "Hook", 8, "Bring back the riff for the refrain", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Lead", "Hook", "Vocal"), "Cut everything for a beat before the hook."),
+            ("switch", "Beat switch", 6, "Flip the riff or drop to half-time", ("Kick", "Snare / Clap", "Percussion", "Bass", "Chords", "Vocal"), "Change the drum pattern while keeping the sub."),
+            ("final_drop", "Final drop", 9, "Run the riff back at full weight", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Lead", "Hook", "Vocal", "FX / Risers"), "Use a reload-style stop before the last drop."),
+            ("outro", "Outro", 2, "End on the riff", ("Bass", "Lead", "Atmosphere"), "Pull the drums; let the riff finish the bar."),
+        ),
+        "variants": (
+            ("grime-vocal-track", "Vocal track", 180, (8, 16, 16, 16, 8, 16, 8), 0),
+            ("grime-instrumental", "Instrumental", 210, (8, 32, 8, 16, 24, 24, 8), 1),
+            ("grime-clash-extended", "Clash extended", 270, (8, 24, 32, 16, 16, 32, 8), 0),
+        ),
+    },
+    "Hyperpop": {
+        "sections": (
+            ("intro", "Glitch intro", 2, "Grab attention with a chopped vocal or synth", ("Lead", "Vocal", "FX / Risers"), "Keep it short; jump straight into the verse."),
+            ("verse", "Verse", 5, "Pitched vocal over a bouncy beat", ("Kick", "Snare / Clap", "Hats", "Bass", "Chords", "Vocal"), "Keep the low end light under the vocal."),
+            ("chorus", "Chorus", 8, "Go maximal on the hook", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Hook", "Vocal"), "Slam everything in on the downbeat."),
+            ("verse_two", "Verse two", 6, "Distort or chop the verse backing", ("Kick", "Snare / Clap", "Hats", "Bass", "Lead", "Vocal", "FX / Risers"), "Change one layer every four bars."),
+            ("switch_up", "Switch-up", 4, "Break the track: change genre or tempo feel", ("Chords", "Lead", "Vocal", "Atmosphere", "FX / Risers"), "Cut abruptly; try a half-time or ambient pass."),
+            ("final_chorus", "Final chorus", 10, "The loudest, most overloaded chorus", ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "Chords", "Lead", "Hook", "Vocal", "Atmosphere", "FX / Risers"), "Stack every existing layer."),
+            ("outro", "Outro", 2, "End suddenly", ("Hook", "Vocal", "FX / Risers"), "Stop dead or glitch out within a bar or two."),
+        ),
+        "variants": (
+            ("hyperpop-short-burst", "Short burst", 135, (4, 16, 16, 8, 8, 16, 4), 0),
+            ("hyperpop-single", "Single", 170, (4, 16, 16, 16, 8, 24, 4), 0),
+            ("hyperpop-extended-chaos", "Extended chaos", 210, (8, 16, 24, 16, 16, 24, 8), 0),
+        ),
+    },
 }
+
+# Typical tempo and groove for each structure, taken from the genre DNA the
+# MIDI generator uses.  Families group the device's genre list.
+_GENRE_DNA_KEYS = {
+    "House": "house", "Drum & Bass": "dnb", "Techno": "techno", "UK Garage": "uk garage",
+    "Hip Hop": "hip hop", "Disco / Nu-disco": "disco_house", "Progressive House": "progressive_house",
+    "Afro House": "afro_house", "Trance": "trance", "Amapiano": "amapiano", "Trap": "trap", "Pop": "pop",
+    "Boom Bap": "hip hop", "Grime": "grime", "Hyperpop": "hyperpop",
+}
+# Where the genre DNA borrows a parent's groove (Grime and Hyperpop use Trap's,
+# Boom Bap uses Hip Hop's), the parent's tempo would be wrong for the structure.
+_GENRE_TEMPOS = {"Boom Bap": (90, (84, 96)), "Grime": (140, (138, 142)), "Hyperpop": (160, (140, 180))}
+GENRE_FAMILIES = (
+    ("House & Disco", ("House", "Progressive House", "Afro House", "Disco / Nu-disco")),
+    ("Techno & Trance", ("Techno", "Trance")),
+    ("Breaks & Bass", ("Drum & Bass", "UK Garage")),
+    ("Hip Hop & Rap", ("Hip Hop", "Boom Bap", "Trap", "Grime")),
+    ("Pop & Global", ("Pop", "Hyperpop", "Amapiano")),
+)
+
+
+def _variant_summaries(genre: str) -> list[dict[str, Any]]:
+    if genre == "House":
+        rows = [(variant_id, _VARIANTS[variant_id]["name"], _VARIANTS[variant_id]["target_seconds"]) for variant_id in VARIANT_IDS]
+    elif genre == "Drum & Bass":
+        rows = [(variant_id, _DNB_VARIANTS[variant_id]["name"], _DNB_VARIANTS[variant_id]["target_seconds"]) for variant_id in DNB_VARIANT_IDS]
+    else:
+        rows = [(variant_id, name, seconds) for variant_id, name, seconds, _weights, _delta in _OTHER_GENRES[genre]["variants"]]
+    return [{"id": variant_id, "name": name, "target_duration_seconds": seconds,
+             "target_duration": "%d:%02d" % divmod(int(round(seconds)), 60)} for variant_id, name, seconds in rows]
+
+
+def genre_catalogue() -> dict[str, Any]:
+    """Every supported structure, its variants and typical tempo; needs no Live state."""
+    genres = []
+    for family, names in GENRE_FAMILIES:
+        for genre in names:
+            dna = genre_dna.RESOLVED_GENRE_REGISTRY[_GENRE_DNA_KEYS[genre]]
+            bpm_default, bpm_range = _GENRE_TEMPOS.get(genre, (dna.bpm_default, dna.bpm_range))
+            genres.append({"genre": genre, "family": family, "bpm_default": bpm_default,
+                           "bpm_range": list(bpm_range), "default_variant": GENRE_VARIANTS[genre][1],
+                           "variants": _variant_summaries(genre)})
+    return {"genres": genres, "default_genre": "House"}
 
 
 def build_other_genre_options(genre: str, state: dict[str, Any], production: dict[str, Any],
