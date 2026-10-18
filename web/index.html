@@ -6,74 +6,83 @@
     <title>Vibelton</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/composition.css" />
+    <link rel="stylesheet" href="/production.css" />
+    <script src="/vibelton_auth.js"></script>
   </head>
-  <body>
+  <body class="mode-production">
     <main class="app-shell">
       <section class="workspace">
         <header class="hero">
-          <div>
+          <div class="hero-brand">
             <p class="eyebrow">Ableton Live Copilot</p>
             <h1>Vibelton</h1>
-            <p class="tagline">Snowball from zero.</p>
+            <p class="tagline">Finish your track, shape arrangements, and compose ideas with reversible steps.</p>
           </div>
           <div class="hero-actions">
-            <div class="mode-toggle" id="modeToggle">
-              <button data-mode="inspiration" class="active">Inspiration</button>
-              <button data-mode="songmaker">Song Maker</button>
-              <button data-mode="finisher">The Finisher</button>
+            <div class="mode-toggle" id="modeToggle" role="tablist" aria-label="Workspace mode">
+              <button data-mode="production" class="active" title="Diagnose, arrange, mix, and check your open Set">Finish &amp; Produce</button>
+              <button data-mode="composition" title="Compose and vary multi-part MIDI sections on your tracks">Compose MIDI</button>
+              <button data-mode="inspiration" title="Browse and send quick musical ideas">Prompt Library</button>
+              <button data-mode="songmaker" title="Build a guided song prompt step by step">Song Builder</button>
             </div>
-            <div class="status" id="status">
+            <div class="status" id="status" title="Ableton Live bridge connection status">
               <span></span>
-              <b>Waiting for Live</b>
+              <b>Checking Live…</b>
             </div>
           </div>
         </header>
+        <section id="compositionLab" hidden aria-label="Composition Lab"></section>
+        <section id="productionWorkspace" aria-label="Production workspace"></section>
 
         <section class="command-bar" aria-label="Prompt search and filters">
           <label class="search-field" for="search">
-            <span>Search</span>
-            <input id="search" type="search" placeholder="drums, 140 BPM, ambient, mix cleanup..." autocomplete="off" />
+            <span>Find an idea</span>
+            <input id="search" type="search" placeholder="Search drums, chords, basslines, house, 140 BPM..." autocomplete="off" />
           </label>
-          <div class="quick-fields">
-            <label>
-              <span>Genre</span>
-              <select id="genre">
-                <option value="">Any style</option>
-                <option>Dance and Mainstage</option>
-                <option>Downtempo</option>
-                <option>Drum n Bass</option>
-                <option>Hip Hop</option>
-                <option>House</option>
-                <option>90s Jungle</option>
-                <option>Modern Pop</option>
-                <option>Reggae and Dance Hall</option>
-                <option>Reggaeton</option>
-                <option>Rock and Country</option>
-                <option>Techno</option>
-                <option>Trance</option>
-                <option>Trap</option>
-                <option>Ambient Cinematic</option>
-                <option>Hyperpop</option>
-                <option>UK Garage</option>
-              </select>
-            </label>
-            <label>
-              <span>BPM</span>
-              <input id="bpm" inputmode="numeric" placeholder="125" />
-            </label>
-            <label>
-              <span>Key</span>
-              <input id="key" placeholder="A minor" />
-            </label>
-            <label>
-              <span>Mood</span>
-              <input id="mood" placeholder="dark" />
-            </label>
-            <label>
-              <span>Reference</span>
-              <input id="reference" placeholder="song, artist, or scene" />
-            </label>
-          </div>
+          <details class="prompt-filters-disclosure">
+            <summary>Customize style, BPM, key, or mood <span class="filter-hint">(Optional)</span></summary>
+            <div class="quick-fields">
+              <label>
+                <span>Style</span>
+                <select id="genre">
+                  <option value="">Any style</option>
+                  <option>Dance and Mainstage</option>
+                  <option>Downtempo</option>
+                  <option>Drum n Bass</option>
+                  <option>Hip Hop</option>
+                  <option>House</option>
+                  <option>90s Jungle</option>
+                  <option>Modern Pop</option>
+                  <option>Reggae and Dance Hall</option>
+                  <option>Reggaeton</option>
+                  <option>Rock and Country</option>
+                  <option>Techno</option>
+                  <option>Trance</option>
+                  <option>Trap</option>
+                  <option>Ambient Cinematic</option>
+                  <option>Hyperpop</option>
+                  <option>UK Garage</option>
+                </select>
+              </label>
+              <label>
+                <span>BPM</span>
+                <input id="bpm" inputmode="numeric" placeholder="e.g. 125" />
+              </label>
+              <label>
+                <span>Key</span>
+                <input id="key" placeholder="e.g. A minor" />
+              </label>
+              <label>
+                <span>Mood</span>
+                <input id="mood" placeholder="e.g. warm, dark" />
+              </label>
+              <label>
+                <span>Reference</span>
+                <input id="reference" placeholder="Artist or vibe" />
+              </label>
+            </div>
+          </details>
         </section>
 
         <nav class="tabs" id="tabs" aria-label="Prompt categories"></nav>
@@ -94,29 +103,38 @@
         <section class="editor-card">
           <div class="editor-head">
             <div>
-              <p class="eyebrow">Editable Prompt</p>
+              <p class="eyebrow">Step 2 · Review &amp; Send</p>
               <h2>Send to Ableton</h2>
             </div>
             <button class="ghost-button" id="clearPrompt" type="button">Clear</button>
           </div>
 
           <form class="composer" id="composer">
-            <label for="prompt">Prompt text</label>
-            <textarea id="prompt" rows="11" placeholder="Pick an idea, shape it, then send it to Ableton."></textarea>
+            <label for="prompt">What should Vibelton create in Live?</label>
+            <textarea id="prompt" rows="8" placeholder="Pick a card on the left or describe the tracks, chords, drums, or changes you want..."></textarea>
             <div class="actions">
-              <button class="secondary-button make-song-button" id="makeSongPrompt" type="button">Make Song Prompt</button>
-              <button class="secondary-button" id="copyPrompt" type="button">Copy</button>
               <button class="primary-button" type="submit">Send to Ableton</button>
+              <button class="secondary-button make-song-button" id="makeSongPrompt" type="button">Load Builder Prompt</button>
+              <button class="secondary-button" id="copyPrompt" type="button">Copy Text</button>
             </div>
           </form>
         </section>
 
+        <section class="panel-section">
+          <h2>Activity</h2>
+          <div class="messages" id="messages">
+            <article class="message assistant">
+              <p>Pick an idea on the left to load it above, then click <strong>Send to Ableton</strong>.</p>
+            </article>
+          </div>
+        </section>
+
         <section class="panel-section vst-settings" id="vstSettingsPanel">
-          <details id="vstSettingsDetails" open>
+          <details id="vstSettingsDetails">
             <summary>
-              <h2>&#127929; VST Instruments</h2>
+              <h2>Instrument Plugins <span class="summary-badge">Defaults to Stock Ableton</span></h2>
             </summary>
-            <p class="vst-hint">Choose which VST to use for each track role when the Finisher builds your arrangement.</p>
+            <p class="vst-hint">Optionally assign a third-party VST for each role when generating new tracks.</p>
             <div class="vst-roles" id="vstRoles">
               <label class="vst-role-row">
                 <span class="vst-role-name">Pad</span>
@@ -147,12 +165,12 @@
 
             <div class="vst-explorer-section">
               <div class="vst-explorer-header">
-                <h3>🔍 VST Plugin Explorer</h3>
-                <button type="button" class="explorer-toggle-btn" id="toggleVstExplorerBtn">Show Scanned Plugins</button>
+                <h3>Plugin Favorites</h3>
+                <button type="button" class="explorer-toggle-btn" id="toggleVstExplorerBtn">Manage Scanned Plugins</button>
               </div>
               <div class="vst-explorer-body hidden" id="vstExplorerBody">
-                <input type="text" id="vstSearchInput" class="vst-search-input" placeholder="Search scanned VSTs..." />
-                <p class="vst-explorer-hint">Right-click a VST (or click its star ⭐) to toggle it as Favorite.</p>
+                <input type="text" id="vstSearchInput" class="vst-search-input" placeholder="Filter scanned plugins..." />
+                <p class="vst-explorer-hint">Click ⭐ to pin a plugin to the top of the role menus.</p>
                 <ul class="vst-plugin-list" id="vstPluginList">
                   <!-- Dynamically populated in app.js -->
                 </ul>
@@ -162,26 +180,18 @@
         </section>
 
         <section class="panel-section">
-          <h2>Live Status</h2>
-          <dl id="liveState">
-            <div><dt>Connection</dt><dd>Unknown</dd></div>
-            <div><dt>Tempo</dt><dd>Unknown</dd></div>
-            <div><dt>Tracks</dt><dd>Unknown</dd></div>
-          </dl>
-        </section>
-
-        <section class="panel-section">
-          <h2>Recent Sends</h2>
-          <div class="messages" id="messages">
-            <article class="message assistant">
-              <p>Choose an idea to load it here. Sending uses the local Vibelton server.</p>
-            </article>
-          </div>
-        </section>
-
-        <section class="panel-section">
-          <h2>Bridge Events</h2>
-          <ol class="events" id="events"></ol>
+          <details class="tech-diagnostics-details">
+            <summary>
+              <h2>Technical Status &amp; Bridge Log</h2>
+            </summary>
+            <dl id="liveState">
+              <div><dt>Connection</dt><dd>Unknown</dd></div>
+              <div><dt>Tempo</dt><dd>Unknown</dd></div>
+              <div><dt>Tracks</dt><dd>Unknown</dd></div>
+            </dl>
+            <h3 class="tech-subhead">Recent Bridge Events</h3>
+            <ol class="events" id="events"></ol>
+          </details>
         </section>
       </aside>
     </main>
@@ -192,5 +202,7 @@
 
     <script src="/house-subgenre-cards.js"></script>
     <script src="/app.js"></script>
+    <script src="/composition.js"></script>
+    <script src="/production.js"></script>
   </body>
 </html>

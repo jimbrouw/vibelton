@@ -492,12 +492,92 @@ def drum_role_for_pitch(pitch: int) -> str:
     return "percussion"
 
 
+from .genre_dna import GENRE_REGISTRY
+
+
+def validate_and_repair_genre_rules(
+    notes: list[dict[str, Any]],
+    role: str,
+    genre: str = "",
+) -> list[dict[str, Any]]:
+    """Enforce curated genre rules on generated MIDI notes:
+    1. Sub-bass below MIDI 43 (~100 Hz) must be strictly monophonic (no overlapping notes).
+    2. UK Garage / 2-step drums must not play a straight four-on-the-floor kick pattern.
+    """
+    if not notes:
+        return []
+    role_key = str(role or "").lower().strip()
+    genre_key = str(genre or "").lower().strip().replace("_", " ")
+
+    repaired = [dict(n) for n in notes]
+
+    if role_key == "bass":
+        repaired.sort(key=lambda item: (float(item.get("start", 0.0)), int(item.get("pitch", 0))))
+        sub_indices = [idx for idx, n in enumerate(repaired) if int(n.get("pitch", 0)) < 43 and not n.get("mute")]
+        to_remove: set[int] = set()
+        kept_sub: list[int] = []
+        for idx in sub_indices:
+            if not kept_sub:
+                kept_sub.append(idx)
+                continue
+            prev_idx = kept_sub[-1]
+            prev_note = repaired[prev_idx]
+            curr_note = repaired[idx]
+            prev_start = float(prev_note.get("start", 0.0))
+            curr_start = float(curr_note.get("start", 0.0))
+            if abs(curr_start - prev_start) < 0.0312:
+                # Simultaneous sub-bass notes: keep the lower pitch, drop the upper
+                to_remove.add(idx)
+                continue
+            prev_end = prev_start + float(prev_note.get("duration", 0.25))
+            if prev_end > curr_start:
+                prev_note["duration"] = round(max(0.0312, curr_start - prev_start), 4)
+            kept_sub.append(idx)
+        repaired = [n for idx, n in enumerate(repaired) if idx not in to_remove]
+
+    elif role_key in ("drums", "kick") and genre_key in ("uk garage", "ukg", "2-step", "2step", "garage", "garage house"):
+        # Group kick notes (pitch 36) by 4-beat bar and repair any straight 4-on-the-floor bar
+        by_bar: dict[int, list[int]] = {}
+        for idx, n in enumerate(repaired):
+            if int(n.get("pitch", 0)) == 36 and not n.get("mute"):
+                bar_idx = int(max(0.0, float(n.get("start", 0.0)) + 0.05) // 4.0)
+                by_bar.setdefault(bar_idx, []).append(idx)
+        to_drop: set[int] = set()
+        for bar_idx, kick_idxs in by_bar.items():
+            bar_start = bar_idx * 4.0
+            beat_hits: dict[int, int] = {}
+            for k_idx in kick_idxs:
+                rel = float(repaired[k_idx].get("start", 0.0)) - bar_start
+                for b in (0, 1, 2, 3):
+                    if abs(rel - float(b)) <= 0.14:
+                        beat_hits[b] = k_idx
+            if len(beat_hits) == 4:
+                # Straight 4x4 detected in UKG: drop beat 1 & 3 kicks, shift beat 2 kick to 2.5 (classic 2-step)
+                to_drop.add(beat_hits[1])
+                to_drop.add(beat_hits[3])
+                has_2_5 = any(
+                    abs((float(repaired[k].get("start", 0.0)) - bar_start) - 2.5) <= 0.14
+                    for k in kick_idxs
+                    if k not in to_drop and k != beat_hits[2]
+                )
+                if has_2_5:
+                    to_drop.add(beat_hits[2])
+                else:
+                    repaired[beat_hits[2]]["start"] = round(bar_start + 2.5, 4)
+        repaired = [n for idx, n in enumerate(repaired) if idx not in to_drop]
+
+
+    return sorted(repaired, key=lambda item: (float(item.get("start", 0.0)), int(item.get("pitch", 0))))
+
+
 def genre_bassline(text: str, bars: int = 4, energy: str = "main", genre: str = "") -> list[dict[str, Any]]:
     """Generate a bassline using the GenreDNA profile for the given genre."""
     root, mode = infer_key(text, genre=genre)
     dna = lookup_genre(genre)
+    raw_dna = GENRE_REGISTRY.get(dna.name, dna)
+    bass_bank = raw_dna.bass_patterns or dna.bass_patterns
     seed = _pattern_seed(text, energy, bars, "bass")
-    if not dna.bass_patterns:
+    if not bass_bank:
         return generate_bassline(text, bars)
 
     base_pitch = note_number(root, dna.bass_octave)
@@ -508,7 +588,7 @@ def genre_bassline(text: str, bars: int = 4, energy: str = "main", genre: str = 
     for bar in range(bars):
         degree = degrees[bar % len(degrees)]
         chord_root = chord_pitches(root, mode, degree, octave=dna.bass_octave)[0]
-        pattern = _pick_bar_pattern(dna.bass_patterns, bar, bars, energy, seed)
+        pattern = _pick_bar_pattern(bass_bank, bar, bars, energy, seed)
 
         for beat, interval, duration, velocity in pattern:
             # Adjust for energy
@@ -546,15 +626,17 @@ def genre_bassline(text: str, bars: int = 4, energy: str = "main", genre: str = 
                 curr_note["duration"] = round(float(next_note["start"]) - float(curr_note["start"]) + 0.1, 4)
                 next_note["velocity"] = int(clamp(max(110, int(next_note["velocity"]) + 15), 1, 127))
                 next_note["pitch"] = int(clamp(int(next_note["pitch"]) + 12, 0, 127))
-    return grooved
+    return validate_and_repair_genre_rules(grooved, "bass", genre or dna.name)
 
 
 def genre_lead(text: str, bars: int = 4, energy: str = "main", genre: str = "") -> list[dict[str, Any]]:
     """Generate a lead/hook using the GenreDNA profile for the given genre."""
     root, mode = infer_key(text, genre=genre)
     dna = lookup_genre(genre)
+    raw_dna = GENRE_REGISTRY.get(dna.name, dna)
+    lead_bank = raw_dna.lead_phrases or dna.lead_phrases
     seed = _pattern_seed(text, energy, bars, "lead")
-    if not dna.lead_phrases:
+    if not lead_bank:
         return generate_melody(text, bars)
 
     scale = SCALES.get(mode, SCALES["minor"])
@@ -562,7 +644,7 @@ def genre_lead(text: str, bars: int = 4, energy: str = "main", genre: str = "") 
     notes: list[dict[str, Any]] = []
 
     for bar in range(bars):
-        phrase = _pick_bar_pattern(dna.lead_phrases, bar, bars, energy, seed)
+        phrase = _pick_bar_pattern(lead_bank, bar, bars, energy, seed)
         for beat, degree, duration, velocity in phrase:
             # Map scale degree to pitch
             octave_shift = 0
@@ -772,4 +854,8 @@ def genre_drums(bars: int = 4, energy: str = "main", genre: str = "") -> list[di
         _groove_note(note, dna.groove_profile, dna.bpm_default, {"seed": seed, "index": index}, drum_role_for_pitch(int(note["pitch"])))
         for index, note in enumerate(notes)
     ]
-    return sorted(grooved, key=lambda item: (float(item["start"]), int(item["pitch"])))
+    return validate_and_repair_genre_rules(
+        sorted(grooved, key=lambda item: (float(item["start"]), int(item["pitch"]))),
+        "drums",
+        genre or dna.name,
+    )

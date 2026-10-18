@@ -1,0 +1,523 @@
+[hidden] {
+  display: none !important;
+}
+body.mode-composition {
+  --accent: #d9b56f;
+  --accent-2: #67b99a;
+}
+.mode-composition .app-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+.mode-composition .workspace {
+  display: block;
+}
+.mode-composition .copilot-panel,
+.mode-composition .command-bar,
+.mode-composition .tabs,
+.mode-composition .library {
+  display: none;
+}
+.mode-toggle {
+  flex-wrap: wrap;
+}
+#compositionLab {
+  padding: 24px 28px 44px;
+}
+#compositionLab button,
+#compositionLab input,
+#compositionLab select,
+#compositionLab textarea {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--dark);
+  color: var(--ink);
+  padding: 9px 12px;
+}
+#compositionLab button {
+  font-size: 13px;
+  font-weight: 650;
+  transition: border-color 0.15s, background 0.15s;
+}
+#compositionLab button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+#compositionLab button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+#compositionLab :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+#compositionLab h2 {
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 2px 0;
+}
+#compositionLab h3 {
+  font-size: 18px;
+  font-weight: 650;
+  margin: 0;
+}
+#compositionLab h4 {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: var(--soft);
+}
+#compositionLab p {
+  line-height: 1.5;
+}
+
+/* Header & 3-Step Workflow Bar */
+.lab-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 16px;
+}
+.lab-subline {
+  color: var(--muted);
+  margin: 4px 0 0;
+  font-size: 13.5px;
+}
+.lab-subline strong {
+  color: var(--ink);
+}
+.lab-duration-box {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.lab-duration-box strong {
+  display: block;
+  font-size: 32px;
+  color: var(--accent);
+  font-weight: 650;
+  line-height: 1;
+}
+.lab-duration-box span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.lab-workflow-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  padding: 14px 18px;
+  background: #131816;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lab-workflow-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 18px;
+  border-right: 1px solid var(--line);
+}
+.lab-workflow-apply {
+  border-right: 0;
+  padding-right: 0;
+}
+.lab-step-num {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.lab-apply-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lab-copy-check {
+  margin: 0 4px 0 0 !important;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--soft) !important;
+}
+.lab-more-tools {
+  margin-left: auto;
+  position: relative;
+}
+.lab-more-tools summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--muted);
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  user-select: none;
+}
+.lab-more-tools summary:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.lab-more-tools-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 25;
+  background: #151b18;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  min-width: 220px;
+  display: grid;
+  gap: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+.lab-more-tools-menu button {
+  text-align: left;
+  width: 100%;
+}
+
+.lab-badge {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 4px 10px;
+  color: var(--accent);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.lab-message {
+  padding: 10px 14px;
+  background: rgba(217, 181, 111, 0.08);
+  border-left: 3px solid var(--accent);
+  border-radius: 5px;
+  color: var(--soft);
+  font-size: 13px;
+  margin: 14px 0 20px;
+}
+.lab-message.lab-error {
+  border-left-color: #f39d8c;
+  background: rgba(243, 157, 140, 0.1);
+  color: #f39d8c;
+}
+
+.lab-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 20px;
+  align-items: start;
+}
+.lab-main,
+.lab-inspector {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.lab-panel {
+  background: #131816;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 20px;
+}
+.lab-panel > summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 13px;
+  user-select: none;
+}
+.lab-panel > summary b {
+  color: var(--ink);
+  margin-left: 4px;
+  font-size: 15.5px;
+  font-weight: 650;
+}
+.lab-panel > summary span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: 10px;
+}
+.lab-panel[open] > summary {
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.lab-subdetails {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.lab-subdetails summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  user-select: none;
+}
+.lab-subdetails summary:hover {
+  color: var(--ink);
+}
+.lab-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.lab-wide {
+  grid-column: 1 / -1;
+}
+.lab-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+#compositionLab label:not(.lab-check):not(.lab-part-lock) {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+#compositionLab label input:not([type='checkbox']),
+#compositionLab label select,
+#compositionLab label textarea {
+  width: 100%;
+  min-width: 0;
+}
+#compositionLab input[type='range'] {
+  padding: 0;
+  accent-color: var(--accent);
+  min-height: 24px;
+}
+#compositionLab input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  min-height: 15px;
+  flex: 0 0 auto;
+}
+#compositionLab textarea {
+  resize: vertical;
+  line-height: 1.5;
+  min-height: 70px;
+}
+#compositionLab output {
+  float: right;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.lab-ingredients {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.lab-ingredients fieldset {
+  border: 0;
+  border-top: 1px solid var(--line);
+  padding: 8px 0 0;
+  margin: 0;
+}
+.lab-ingredients legend {
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0 8px 0 0;
+}
+.lab-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin: 5px 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+.lab-panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.lab-panel-heading > span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.lab-ribbon {
+  display: flex;
+  height: 52px;
+  gap: 2px;
+  margin-bottom: 16px;
+}
+#compositionLab .lab-ribbon button {
+  min-width: 8px;
+  border-radius: 3px;
+  padding: 0;
+  background: color-mix(in srgb, var(--accent) calc(var(--energy) * 55%), #1b2720);
+  position: relative;
+  overflow: hidden;
+}
+.lab-ribbon span {
+  font-size: 10px;
+  white-space: nowrap;
+}
+#compositionLab .lab-ribbon button.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.lab-timeline {
+  max-height: 390px;
+  overflow-y: auto;
+}
+.lab-row {
+  display: flex;
+  border-top: 1px solid var(--line);
+  align-items: center;
+}
+.lab-row.selected {
+  background: #25291e;
+  border-left: 3px solid var(--accent);
+}
+#compositionLab .lab-row-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 28px 1fr 42px 56px;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 11px 8px;
+  font-weight: 400;
+}
+.lab-row-main small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 3px;
+}
+.lab-row-main b {
+  font-weight: 600;
+}
+.lab-row-main strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+.lab-row-main > span:last-child {
+  color: var(--muted);
+  font-size: 11.5px;
+  text-align: right;
+}
+.lab-index {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.lab-row-actions {
+  display: flex;
+  padding-right: 4px;
+}
+#compositionLab .lab-row-actions button {
+  padding: 4px 7px;
+  background: none;
+  border: 0;
+  color: var(--muted);
+}
+.lab-section-fields {
+  border: 0;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.lab-parts {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  font-size: 11px;
+  color: var(--muted);
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  margin-top: 8px;
+}
+.lab-part-lock {
+  text-align: center;
+}
+.lab-small-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.lab-help {
+  font-size: 12px;
+  color: var(--muted);
+}
+#compositionLab .lab-primary {
+  background: var(--accent);
+  color: #15170f;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.lab-history {
+  display: grid;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+#compositionLab .lab-history button {
+  text-align: left;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.lab-history span {
+  color: var(--muted);
+  flex: 1;
+}
+.lab-history small {
+  color: var(--muted);
+  font-weight: 400;
+}
+#labJobs article {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+}
+#labJobs article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+#labJobs small,
+#labJobs article p {
+  color: var(--muted);
+  margin: 4px 0;
+}
+#labJobs details {
+  margin-top: 8px;
+  font-size: 11.5px;
+}
+
+@media (max-width: 1000px) {
+  .lab-grid {
+    grid-template-columns: 1fr;
+  }
+  .lab-two-col {
+    grid-template-columns: 1fr;
+  }
+  .lab-workflow-step {
+    border-right: 0;
+    padding-right: 0;
+  }
+}

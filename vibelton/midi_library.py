@@ -14,15 +14,27 @@ from typing import Any
 from .genre_dna import detect_style_from_text as detect_style
 
 
-DEFAULT_MIDI_ROOTS = [
-    "/Users/standard/Music/free-midi-chords-20240314",
-    "/Users/standard/Music/GM Mapped",
-    "/Users/standard/Music/free-midi-progressions-20240314",
-    "/Users/standard/Music/Cymatics_Black_Friday_Deluxe_Bundle",
-    "/Users/standard/Music/DrumPlug Ascension Sound Pack/_MIDI",
-    "/Users/standard/Music/Cymatics_Savage_Drums_For_Trap_Gold_Edition/Cymatics - Savage Drums for Trap - Gold Edition/MIDI",
-    "/Users/standard/Music",
-]
+_MUSIC = Path.home() / "Music"
+DEFAULT_MIDI_ROOTS = [str(path) for path in (
+    _MUSIC / "free-midi-chords-20240314",
+    _MUSIC / "GM Mapped",
+    _MUSIC / "free-midi-progressions-20240314",
+    _MUSIC / "Cymatics_Black_Friday_Deluxe_Bundle",
+    _MUSIC / "DrumPlug Ascension Sound Pack" / "_MIDI",
+    _MUSIC / "Cymatics_Savage_Drums_For_Trap_Gold_Edition" / "Cymatics - Savage Drums for Trap - Gold Edition" / "MIDI",
+    _MUSIC,
+)]
+
+
+def configured_midi_roots() -> list[str]:
+    """Default roots plus any ``midi_library_roots`` listed in ~/.vibelton/config.json."""
+    try:
+        config = json.loads((Path.home() / ".vibelton" / "config.json").read_text(encoding="utf-8"))
+        extra = config.get("midi_library_roots", []) if isinstance(config, dict) else []
+    except (OSError, ValueError):
+        extra = []
+    return DEFAULT_MIDI_ROOTS + [str(Path(item).expanduser()) for item in extra if isinstance(item, str) and item.strip()]
+
 
 CACHE_PATH = Path.home() / ".cache" / "vibelton" / "midi_grooves.json"
 
@@ -258,7 +270,7 @@ def load_cached_library(path: Path = CACHE_PATH) -> dict[str, Any]:
 
 
 def build_library(roots: list[str] | None = None, limit: int | None = None) -> dict[str, Any]:
-    paths = discover_midi_files(roots or DEFAULT_MIDI_ROOTS)
+    paths = discover_midi_files(roots or configured_midi_roots())
     if limit is not None:
         paths = paths[:limit]
 
@@ -296,7 +308,7 @@ def build_library(roots: list[str] | None = None, limit: int | None = None) -> d
 
     return {
         "version": 1,
-        "roots": roots or DEFAULT_MIDI_ROOTS,
+        "roots": roots or configured_midi_roots(),
         "file_count": len(paths),
         "groove_count": parsed,
         "skipped": dict(skipped),

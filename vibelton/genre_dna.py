@@ -235,7 +235,7 @@ DEEP_HOUSE = GenreDNA(
         [0.0, 2.0],             # two-bar feel, gentle shift
     ),
     chord_duration=4.0,
-    chord_extensions=(),
+    chord_extensions=(10, 14),
 
     lead_octave=4,
     lead_phrases=(
@@ -287,6 +287,224 @@ TECH_HOUSE = GenreDNA(
     lead_phrases=(
         [(0.0, 0, 0.18, 82), (0.5, 2, 0.16, 78), (1.0, 0, 0.18, 82), (2.0, 2, 0.18, 80)],
         [(0.0, 0, 0.18, 84), (0.75, 2, 0.16, 78), (1.5, 0, 0.18, 82), (3.0, 2, 0.18, 80)],
+    ),
+    parent="house",
+)
+
+# ── Garage House ─────────────────────────────────────────────────────
+GARAGE_HOUSE = GenreDNA(
+    name="garage_house",
+    bpm_default=126, bpm_range=(124, 128), groove_profile=GROOVE_TEMPLATES["ukg_shuffle"],
+
+    kick_patterns=(
+        [0.0, 1.0, 2.0, 2.75, 3.0],                    # swung 4x4 with skippy pickup
+        [0.0, 0.75, 1.0, 2.0, 3.0, 3.75],              # double ghost bounce
+    ),
+    snare_patterns=(
+        [1.0, 2.75, 3.0],                              # ghost snare before 4
+        [1.0, 1.75, 3.0],                              # ghost snare before 2.5
+    ),
+    hat_patterns=(
+        [0.25, 0.5, 0.75, 1.25, 1.5, 1.75, 2.25, 2.5, 2.75, 3.25, 3.5, 3.75],
+        [i * 0.25 for i in range(16)],
+    ),
+    hat_style="16ths",
+
+    bass_octave=1,
+    bass_patterns=(
+        [(0.0, 0, 0.35, 102), (0.75, 3, 0.25, 90), (1.5, 5, 0.35, 96),
+         (2.5, 7, 0.35, 98), (3.25, 0, 0.25, 88)],
+        [(0.0, 0, 0.3, 100), (1.25, 7, 0.25, 92), (2.0, 0, 0.3, 98),
+         (2.75, 10, 0.25, 90), (3.5, 7, 0.25, 86)],
+    ),
+
+    chord_octave=4, chord_style="stab",
+    chord_rhythms=(
+        [0.5, 1.5, 2.75, 3.5],         # M1 organ offbeat stabs
+        [0.0, 0.75, 2.0, 2.75],
+    ),
+    chord_duration=0.32,
+    chord_extensions=(10,),
+
+    lead_octave=4,
+    lead_phrases=(
+        [(0.0, 4, 0.35, 84), (0.75, 2, 0.3, 78), (1.5, 4, 0.4, 86), (2.75, 5, 0.35, 82)],
+        [(0.5, 2, 0.3, 80), (1.25, 4, 0.35, 84), (2.5, 3, 0.3, 78), (3.25, 0, 0.4, 82)],
+    ),
+    parent="house",
+)
+
+# ── Afro House ───────────────────────────────────────────────────────
+AFRO_HOUSE = GenreDNA(
+    name="afro_house",
+    bpm_default=121, bpm_range=(118, 124), groove_profile=GROOVE_TEMPLATES["dembow"],
+
+    kick_patterns=(
+        [0.0, 1.0, 2.0, 3.0],
+        [0.0, 0.75, 1.0, 2.0, 2.75, 3.0],              # clave-inflected 4x4
+    ),
+    snare_patterns=(
+        [0.75, 1.5, 2.75, 3.5],                        # syncopated wooden rim/clap
+        [1.0, 2.25, 3.0, 3.75],
+    ),
+    hat_patterns=(
+        [i * 0.25 for i in range(16)],                  # constant 16th shaker grid
+        [0.0, 0.25, 0.5, 0.75, 1.25, 1.5, 2.0, 2.25, 2.5, 2.75, 3.25, 3.5],
+    ),
+    hat_style="16ths",
+
+    bass_octave=1,
+    bass_patterns=(
+        [(0.0, 0, 0.45, 104), (0.75, 0, 0.3, 94), (1.5, 7, 0.4, 98),
+         (2.25, 5, 0.35, 92), (3.0, 0, 0.5, 100)],
+        [(0.0, 0, 0.5, 102), (1.5, 3, 0.35, 94), (2.5, 7, 0.4, 96), (3.25, 0, 0.35, 90)],
+    ),
+
+    chord_octave=4, chord_style="pad",
+    chord_rhythms=(
+        [0.0, 1.5, 3.0],               # hypnotic 3-3-2 chord pulse
+        [0.0, 2.5],
+    ),
+    chord_duration=1.1,
+    chord_extensions=(10, 14),
+
+    lead_octave=4,
+    lead_phrases=(
+        [(0.0, 0, 0.4, 82), (0.75, 2, 0.35, 78), (1.5, 4, 0.45, 86), (2.25, 2, 0.35, 80), (3.0, 0, 0.5, 84)],
+        [(0.0, 4, 0.5, 84), (1.5, 5, 0.4, 80), (2.5, 4, 0.4, 82), (3.25, 2, 0.4, 78)],
+    ),
+    parent="house",
+)
+
+# ── Bass House ───────────────────────────────────────────────────────
+BASS_HOUSE = GenreDNA(
+    name="bass_house",
+    bpm_default=128, bpm_range=(126, 130), groove_profile=GROOVE_TEMPLATES["push"],
+
+    kick_patterns=(
+        [0.0, 1.0, 1.75, 2.0, 3.0, 3.5],               # aggressive double-kick push
+        [0.0, 1.0, 2.0, 3.0, 3.75],
+    ),
+    snare_patterns=(
+        [1.0, 3.0, 3.75],                              # heavy backbeat + fill snap
+        [1.0, 2.5, 3.0],
+    ),
+    hat_patterns=(
+        [0.5, 1.5, 2.5, 3.5],                          # sharp open offbeat hats
+        [0.25, 0.5, 1.25, 1.5, 2.25, 2.5, 3.25, 3.5],
+    ),
+    hat_style="16ths",
+
+    bass_octave=1,
+    bass_patterns=(
+        [(0.0, 0, 0.22, 118), (0.5, 12, 0.22, 112), (0.75, 1, 0.2, 108),
+         (1.25, 0, 0.22, 114), (1.5, 12, 0.22, 110), (2.0, 0, 0.22, 118),
+         (2.5, 7, 0.22, 112), (3.0, 0, 0.22, 116), (3.5, 1, 0.2, 110)],
+        [(0.0, 0, 0.3, 116), (0.75, 12, 0.2, 110), (1.5, 3, 0.25, 112),
+         (2.0, 0, 0.3, 116), (2.75, 6, 0.22, 108), (3.25, 1, 0.22, 112)],
+    ),
+
+    chord_octave=4, chord_style="stab",
+    chord_rhythms=(
+        [0.0, 1.5],                    # sparse metallic impact stabs
+        [0.0, 2.75],
+    ),
+    chord_duration=0.22,
+    chord_extensions=(6,),
+
+    lead_octave=4,
+    lead_phrases=(
+        [(0.0, 0, 0.2, 92), (0.5, 1, 0.2, 88), (1.5, 0, 0.25, 94), (2.5, 3, 0.2, 90), (3.5, 1, 0.2, 88)],
+        [(0.0, 0, 0.25, 94), (0.75, 4, 0.2, 90), (2.0, 0, 0.25, 92), (2.75, 1, 0.2, 88)],
+    ),
+    parent="house",
+)
+
+# ── Disco House ──────────────────────────────────────────────────────
+DISCO_HOUSE = GenreDNA(
+    name="disco_house",
+    bpm_default=123, bpm_range=(120, 126), groove_profile=GROOVE_TEMPLATES["mpc_58"],
+
+    kick_patterns=(
+        [0.0, 1.0, 2.0, 3.0],
+        [0.0, 1.0, 2.0, 3.0, 3.5],                     # disco turnaround kick
+    ),
+    snare_patterns=(
+        [1.0, 3.0],
+        [1.0, 2.75, 3.0, 3.75],                        # funky clap + ghost
+    ),
+    hat_patterns=(
+        [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5],      # classic 8th ride/hat
+        [0.5, 1.5, 2.5, 3.5],
+    ),
+    hat_style="8ths",
+
+    bass_octave=1,
+    bass_patterns=(
+        [(0.0, 0, 0.32, 104), (0.5, 12, 0.28, 92), (1.0, 7, 0.32, 98), (1.5, 10, 0.28, 94),
+         (2.0, 0, 0.32, 104), (2.5, 12, 0.28, 92), (3.0, 5, 0.3, 98), (3.5, 7, 0.3, 100)],
+        [(0.0, 0, 0.35, 102), (0.75, 7, 0.25, 90), (1.5, 12, 0.3, 96),
+         (2.0, 0, 0.35, 102), (3.0, 10, 0.3, 94), (3.5, 11, 0.25, 96)],
+    ),
+
+    chord_octave=4, chord_style="stab",
+    chord_rhythms=(
+        [0.0, 0.75, 1.5, 2.5, 3.0],    # filtered French/disco chop rhythm
+        [0.5, 1.5, 2.25, 3.5],
+    ),
+    chord_duration=0.45,
+    chord_extensions=(10, 14),
+
+    lead_octave=4,
+    lead_phrases=(
+        [(0.0, 4, 0.4, 86), (0.5, 5, 0.35, 82), (1.0, 6, 0.45, 88), (2.0, 4, 0.5, 84), (3.0, 2, 0.4, 80)],
+        [(0.5, 2, 0.35, 82), (1.0, 4, 0.4, 86), (1.75, 6, 0.4, 88), (3.0, 4, 0.5, 84)],
+    ),
+    parent="house",
+)
+
+# ── Progressive House ────────────────────────────────────────────────
+PROGRESSIVE_HOUSE = GenreDNA(
+    name="progressive_house",
+    bpm_default=126, bpm_range=(124, 128), groove_profile=GROOVE_TEMPLATES["straight"],
+
+    kick_patterns=(
+        [0.0, 1.0, 2.0, 3.0],
+        [0.0, 1.0, 2.0, 2.75, 3.0],
+    ),
+    snare_patterns=(
+        [1.0, 3.0],
+        [1.0, 3.0, 3.5],
+    ),
+    hat_patterns=(
+        [i * 0.25 for i in range(16)],                 # smooth rolling 16ths
+        [0.0, 0.5, 0.75, 1.0, 1.5, 1.75, 2.0, 2.5, 2.75, 3.0, 3.5, 3.75],
+    ),
+    hat_style="16ths",
+
+    bass_octave=1,
+    bass_patterns=(
+        [(0.0, 0, 0.22, 102), (0.25, 0, 0.2, 88), (0.5, 7, 0.22, 94), (0.75, 12, 0.2, 90),
+         (1.0, 0, 0.22, 102), (1.25, 0, 0.2, 88), (1.5, 7, 0.22, 94), (1.75, 10, 0.2, 90),
+         (2.0, 0, 0.22, 102), (2.25, 0, 0.2, 88), (2.5, 7, 0.22, 94), (2.75, 12, 0.2, 90),
+         (3.0, 5, 0.22, 100), (3.25, 5, 0.2, 88), (3.5, 7, 0.22, 96), (3.75, 10, 0.2, 92)],
+        [(0.0, 0, 0.45, 100), (0.5, 7, 0.4, 92), (1.0, 12, 0.45, 96), (1.5, 7, 0.4, 90),
+         (2.0, 0, 0.45, 100), (2.5, 5, 0.4, 92), (3.0, 7, 0.45, 96), (3.5, 10, 0.4, 90)],
+    ),
+
+    chord_octave=4, chord_style="pad",
+    chord_rhythms=(
+        [0.0, 1.75, 3.0],              # wide progressive pluck/pad swells
+        [0.0, 2.0],
+    ),
+    chord_duration=1.25,
+    chord_extensions=(7, 14),
+
+    lead_octave=4,
+    lead_phrases=(
+        [(0.0, 0, 0.45, 80), (0.5, 2, 0.4, 78), (1.0, 4, 0.45, 84), (1.5, 6, 0.45, 86),
+         (2.0, 7, 0.6, 88), (3.0, 4, 0.6, 82)],
+        [(0.0, 4, 0.6, 82), (1.0, 6, 0.5, 84), (2.0, 7, 0.7, 88), (3.0, 5, 0.6, 80)],
     ),
     parent="house",
 )
@@ -988,6 +1206,11 @@ GENRE_REGISTRY: dict[str, GenreDNA] = {
     "house": HOUSE,
     "deep_house": DEEP_HOUSE,
     "tech_house": TECH_HOUSE,
+    "garage_house": GARAGE_HOUSE,
+    "afro_house": AFRO_HOUSE,
+    "bass_house": BASS_HOUSE,
+    "disco_house": DISCO_HOUSE,
+    "progressive_house": PROGRESSIVE_HOUSE,
     "uk garage": UK_GARAGE,
     "drum n bass": DNB,
     "dnb": DNB,
@@ -1025,8 +1248,8 @@ def _resolve_genre(key: str, registry: dict[str, GenreDNA]) -> GenreDNA:
     parent = registry[child.parent]
     return dataclasses.replace(
         child,
-        bass_patterns=parent.bass_patterns + child.bass_patterns,
-        lead_phrases=parent.lead_phrases + child.lead_phrases,
+        bass_patterns=child.bass_patterns + parent.bass_patterns,
+        lead_phrases=child.lead_phrases + parent.lead_phrases,
     )
 
 
@@ -1337,9 +1560,113 @@ CURATED_GENRES: dict[str, CuratedGenreDNA] = {
     ),
 }
 
+CURATED_HOUSE_SUBGENRES: dict[str, CuratedGenreDNA] = {
+    "garage_house": CuratedGenreDNA(
+        name="Garage House",
+        bpm_range=(124, 128),
+        swing_percent=(58, 63),
+        bar_grid="4/4 16-bar phrases",
+        structure=("intro 16", "build 16", "drop 32", "break 16", "drop 2 32", "outro 16"),
+        kick_pattern="Swung four-on-the-floor kick with skippy late ghost pickups.",
+        bass_pattern="M1 organ and deep sub bass answering offbeat stabs.",
+        hi_hat_pattern="Swung 16th-note tops with shuffled ghost hats.",
+        energy_arc="sustained",
+        rules=(
+            "Keep the four-on-the-floor kick swung and soulful.",
+            "Use classic organ or piano offbeat chord stabs.",
+            "Sub bass below 100 Hz must be monophonic.",
+        ),
+        rule_breakers=("Drop the kick for 2 bars while organ stabs carry the rhythm.",),
+        blends_with=("uk garage", "deep_house", "house"),
+        vibe_words=("garage house", "m1 organ", "90s club", "shuffled house"),
+    ),
+    "afro_house": CuratedGenreDNA(
+        name="Afro House",
+        bpm_range=(118, 124),
+        swing_percent=(54, 60),
+        bar_grid="4/4 16-bar phrases",
+        structure=("intro 16", "build 16", "drop 32", "break 16", "drop 2 32", "outro 16"),
+        kick_pattern="Steady earthy four-on-the-floor kick anchored under 3-3-2 percussion.",
+        bass_pattern="Warm rolling sub and tom-like melodic bass synced to clave accents.",
+        hi_hat_pattern="Layered organic 16th shakers and wooden rimshots.",
+        energy_arc="meditative",
+        rules=(
+            "Layer polyrhythmic 3-3-2 percussion over a steady kick.",
+            "Use organic shakers, congas, and atmospheric minor chords.",
+            "Sub bass below 100 Hz must be monophonic.",
+        ),
+        rule_breakers=("Strip the kick in the breakdown and let tribal percussion build tension.",),
+        blends_with=("afrobeats", "amapiano", "deep_house"),
+        vibe_words=("afro house", "tribal", "organic", "conga", "ritual"),
+    ),
+    "bass_house": CuratedGenreDNA(
+        name="Bass House",
+        bpm_range=(126, 130),
+        swing_percent=(50, 54),
+        bar_grid="4/4 16-bar phrases",
+        structure=("intro 16", "build 16", "drop 32", "break 16", "drop 2 32", "outro 16"),
+        kick_pattern="Punchy four-on-the-floor kick with aggressive pre-snare double kicks.",
+        bass_pattern="Distorted wobble/FM growl bass jumping octaves and half-steps.",
+        hi_hat_pattern="Sharp metallic offbeat open hats.",
+        energy_arc="tension-release",
+        rules=(
+            "Let aggressive FM/wobble bass dominate the drop.",
+            "Keep chord stabs minimal and percussive.",
+            "Sub bass below 100 Hz must be monophonic.",
+        ),
+        rule_breakers=("Fake-out drop with 1 bar of dry vocal + sub drop before the main bass enters.",),
+        blends_with=("tech_house", "uk garage", "dubstep"),
+        vibe_words=("bass house", "fm bass", "filthy", "festival club"),
+    ),
+    "disco_house": CuratedGenreDNA(
+        name="Disco House",
+        bpm_range=(120, 126),
+        swing_percent=(54, 58),
+        bar_grid="4/4 16-bar phrases",
+        structure=("intro 16", "build 16", "drop 32", "break 16", "drop 2 32", "outro 16"),
+        kick_pattern="Warm four-on-the-floor kick with turnaround pickups.",
+        bass_pattern="Funky octave-bouncing electric/synth bassline with walkups.",
+        hi_hat_pattern="Crisp 8th-note ride and open offbeat hat lift.",
+        energy_arc="sustained",
+        rules=(
+            "Use funky octave-jumping bass and 7th/9th disco chord stabs.",
+            "Filter sweeps build into drops.",
+            "Sub bass below 100 Hz must be monophonic.",
+        ),
+        rule_breakers=("Hold a phaser-swept chord loop for 4 bars with no drums before the drop.",),
+        blends_with=("house", "deep_house", "pop"),
+        vibe_words=("disco house", "french touch", "funky", "filtered disco", "strings"),
+    ),
+    "progressive_house": CuratedGenreDNA(
+        name="Progressive House",
+        bpm_range=(124, 128),
+        swing_percent=(50, 53),
+        bar_grid="4/4 16-bar phrases",
+        structure=("intro 32", "build 16", "main 32", "break 16", "main 2 32", "outro 32"),
+        kick_pattern="Clean driving four-on-the-floor pulse.",
+        bass_pattern="Hypnotic 16th-note rolling arpeggiated bassline.",
+        hi_hat_pattern="Smooth evolving 16th-note shakers and open hat swells.",
+        energy_arc="wave",
+        rules=(
+            "Build long emotional arcs through filter and harmonic evolution.",
+            "Use wide lush 7th/9th pad and pluck voicings.",
+            "Sub bass below 100 Hz must be monophonic.",
+        ),
+        rule_breakers=("Modulate key or lift chord voicings in the second drop.",),
+        blends_with=("trance", "deep_house", "techno"),
+        vibe_words=("progressive house", "melodic house", "euphoric", "evolving", "arpeggio"),
+    ),
+}
+
 CURATED_ALIASES: dict[str, str] = {
     "deep house": "deep_house",
     "tech house": "tech_house",
+    "garage house": "garage_house",
+    "afro house": "afro_house",
+    "afro-house": "afro_house",
+    "bass house": "bass_house",
+    "disco house": "disco_house",
+    "progressive house": "progressive_house",
     "ukg": "uk garage",
     "garage": "uk garage",
     "2-step": "uk garage",
@@ -1353,19 +1680,28 @@ CURATED_ALIASES: dict[str, str] = {
 HOUSE_SUBGENRE_ALIASES: tuple[tuple[str, str], ...] = (
     ("acid house", "acid_house"),
     ("ambient house", "ambient_house"),
+    ("afro house", "afro_house"),
+    ("afro-house", "afro_house"),
+    ("afro_house", "afro_house"),
     ("bass house", "bass_house"),
+    ("bass_house", "bass_house"),
     ("chicago house", "chicago_house"),
     ("deep house", "deep_house"),
+    ("deep_house", "deep_house"),
     ("disco house", "disco_house"),
+    ("disco_house", "disco_house"),
     ("electro house", "electro_house"),
     ("french house", "french_house"),
     ("funky house", "funky_house"),
     ("garage house", "garage_house"),
+    ("garage_house", "garage_house"),
     ("g-house", "g_house"),
     ("g house", "g_house"),
     ("minimal house", "minimal_house"),
     ("progressive house", "progressive_house"),
+    ("progressive_house", "progressive_house"),
     ("tech house", "tech_house"),
+    ("tech_house", "tech_house"),
     ("tribal house", "tribal_house"),
     ("tropical house", "tropical_house"),
 )
@@ -1373,7 +1709,9 @@ HOUSE_SUBGENRE_ALIASES: tuple[tuple[str, str], ...] = (
 
 def lookup_genre(name: str) -> GenreDNA:
     """Return the GenreDNA for a genre name, falling back to House."""
-    return _RESOLVED_GENRE_REGISTRY.get(name.lower().strip(), DEFAULT_DNA)
+    key = name.lower().strip()
+    key = CURATED_ALIASES.get(key, key)
+    return _RESOLVED_GENRE_REGISTRY.get(key, DEFAULT_DNA)
 
 
 def normalize_curated_genre_id(name: str) -> str:
@@ -1383,7 +1721,8 @@ def normalize_curated_genre_id(name: str) -> str:
 
 def lookup_curated_genre(name: str) -> CuratedGenreDNA | None:
     """Return the curated prompt grammar for a genre name, if one exists."""
-    return CURATED_GENRES.get(normalize_curated_genre_id(name))
+    norm = normalize_curated_genre_id(name)
+    return CURATED_GENRES.get(norm) or CURATED_HOUSE_SUBGENRES.get(norm)
 
 
 def find_curated_genres_by_vibe(words: list[str]) -> list[CuratedGenreDNA]:

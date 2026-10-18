@@ -35,6 +35,8 @@ from .genre_dna import (
 from .music_theory import producer_theory_card
 from .midi_library import generate_library_drums, generate_library_chords, generate_library_melody, generate_library_bass, mutate_clones, humanize_groove, add_ghost_notes, stable_seed
 from .actions import finisher_mutation
+from .transitions import generate_snare_roll, generate_turnaround_bass_fill, inject_pre_drop_silence
+
 
 
 ACTION_SCHEMA: dict[str, Any] = {
@@ -593,6 +595,8 @@ def generate_crash_notes() -> list[dict[str, Any]]:
 
 def _build_section_transitions(
     sections: list[tuple[str, int, str]],
+    *,
+    create_track: bool = True,
 ) -> list[dict[str, Any]]:
     """Return actions that add a FX / Riser track with riser and crash clips at
     section boundaries.  Called from expanded_song_sketch_plan after the main
@@ -604,10 +608,10 @@ def _build_section_transitions(
     if not any(energy == "build" for _, _, energy in sections):
         return []
 
-    actions: list[dict[str, Any]] = [
-        {"type": "create_midi_track", "name": "FX / Riser"},
-        {"type": "set_track_volume", "track_name": "FX / Riser", "db": -12},
-    ]
+    actions: list[dict[str, Any]] = []
+    if create_track:
+        actions.append({"type": "create_midi_track", "name": "FX / Riser"})
+    actions.append({"type": "set_track_volume", "track_name": "FX / Riser", "db": -12})
 
     prev_energy = ""
     for scene_index, (section, bars, energy) in enumerate(sections):
@@ -1134,6 +1138,7 @@ def expanded_song_sketch_plan(message: str, vst_map: dict[str, str] | None = Non
             allowed_tracks.discard(t)
         allowed_tracks.add("Drum Instrument")
 
+    has_build_transitions = any(energy == "build" for _, _, energy in sections)
     track_names = [t for t in [
         "Riff",
         "Hook",
@@ -1148,6 +1153,8 @@ def expanded_song_sketch_plan(message: str, vst_map: dict[str, str] | None = Non
         "Hh / Sh / Rd +",
         "Bd",
     ] if t in allowed_tracks]
+    if has_build_transitions and "FX / Riser" not in track_names:
+        track_names.append("FX / Riser")
 
     actions: list[dict[str, Any]] = [{"type": "set_tempo", "bpm": bpm}]
     for track in track_names:
@@ -1164,6 +1171,7 @@ def expanded_song_sketch_plan(message: str, vst_map: dict[str, str] | None = Non
         "Riff": "lead",
         "Chords": "chords",
         "Ambience": "fx",
+        "FX / Riser": "fx",
         "Drum Instrument": "drums",
     }
     
@@ -1182,7 +1190,7 @@ def expanded_song_sketch_plan(message: str, vst_map: dict[str, str] | None = Non
     
     for track_name, device_query in palette.items():
         role_key = role_mapping.get(track_name)
-        plugin_name = _vst_map.get(role_key) if role_key else None
+        plugin_name = (_vst_map.get(role_key) or _vst_map.get("all")) if role_key else None
         if plugin_name:
             vst_track_map[track_name] = [plugin_name]
         else:
@@ -1221,34 +1229,56 @@ def expanded_song_sketch_plan(message: str, vst_map: dict[str, str] | None = Non
         elif energy == "intro" and intro_style == "atmosphere":
             intro_allowed_tracks = {"Chords", "Pad", "Ambience"}
 
+        next_energy = sections[scene_index + 1][2] if scene_index + 1 < len(sections) else ""
+        leads_to_drop = energy == "build" and next_energy == "main"
+
         actions.append({"type": "set_scene_name", "scene_index": scene_index, "name": section})
         if "Chords" in track_names and "Chords" in intro_allowed_tracks:
             actions.append(scene_clip("Chords", section, "progression", scene_index, library_chords(message, bars, energy, style), bars))
         if "Pad" in track_names and "Pad" in intro_allowed_tracks:
             actions.append(scene_clip("Pad", section, "wide pad", scene_index, pad_notes(message, bars, energy, style), bars))
         if "Bass" in track_names and "Bass" in intro_allowed_tracks and energy != "intro":
-            actions.append(scene_clip("Bass", section, "bassline", scene_index, library_bassline(message, bars, "build" if energy == "build" else "main", style), bars))
+            bass_clip_notes = library_bassline(message, bars, "build" if energy == "build" else "main", style)
+            if leads_to_drop:
+                root_pitch = int(bass_clip_notes[0]["pitch"]) if bass_clip_notes else 36
+                bass_clip_notes = generate_turnaround_bass_fill(bass_clip_notes, bars=bars, root_midi=root_pitch)
+                bass_clip_notes = inject_pre_drop_silence(bass_clip_notes, bars=bars, silence_beats=1.0)
+            actions.append(scene_clip("Bass", section, "bassline", scene_index, bass_clip_notes, bars))
         if "Riff" in track_names and "Riff" in intro_allowed_tracks and energy in {"build", "main"}:
             actions.append(scene_clip("Riff", section, "riff", scene_index, riff_notes(message, bars, energy, style), bars))
         if "Hook" in track_names and "Hook" in intro_allowed_tracks and energy in {"main", "break"}:
             actions.append(scene_clip("Hook", section, "hook", scene_index, hook_notes(message, bars, energy, style), bars))
         if "Hh / Sh / Rd" in track_names and "Hh / Sh / Rd" in intro_allowed_tracks:
-            actions.append(scene_clip("Hh / Sh / Rd", section, "hat groove", scene_index, drum_only(message, bars, energy, {42, 46, 49}, style), bars))
+            hat_clip_notes = drum_only(message, bars, energy, {42, 46, 49}, style)
+            if leads_to_drop:
+                hat_clip_notes = inject_pre_drop_silence(hat_clip_notes, bars=bars, silence_beats=1.0)
+            actions.append(scene_clip("Hh / Sh / Rd", section, "hat groove", scene_index, hat_clip_notes, bars))
         if "Hh / Sh / Rd +" in track_names and "Hh / Sh / Rd +" in intro_allowed_tracks and energy in {"build", "main"}:
             actions.append(scene_clip("Hh / Sh / Rd +", section, "top lift", scene_index, drum_only(message, bars, "build", {42, 46, 49}, style), bars))
         if energy != "break":
             if "Bd" in track_names and "Bd" in intro_allowed_tracks:
-                actions.append(scene_clip("Bd", section, "kick", scene_index, drum_only(message, bars, energy, {36}, style), bars))
+                bd_clip_notes = drum_only(message, bars, energy, {36}, style)
+                if leads_to_drop:
+                    bd_clip_notes = inject_pre_drop_silence(bd_clip_notes, bars=bars, silence_beats=1.0)
+                actions.append(scene_clip("Bd", section, "kick", scene_index, bd_clip_notes, bars))
             if "Snare / Clap" in track_names and "Snare / Clap" in intro_allowed_tracks:
-                actions.append(scene_clip("Snare / Clap", section, "backbeat", scene_index, drum_only(message, bars, energy, {38, 39}, style), bars))
+                snare_clip_notes = drum_only(message, bars, energy, {38, 39}, style)
+                if leads_to_drop:
+                    snare_clip_notes = inject_pre_drop_silence(snare_clip_notes, bars=bars, silence_beats=1.0)
+                    snare_clip_notes.extend(generate_snare_roll(bars=bars, roll_bars=min(2, bars), silence_beats=1.0, pitch=38))
+                actions.append(scene_clip("Snare / Clap", section, "backbeat", scene_index, snare_clip_notes, bars))
             if "Percussion" in track_names and "Percussion" in intro_allowed_tracks:
                 actions.append(scene_clip("Percussion", section, "perc", scene_index, percussion_notes(bars, energy, style), bars))
         if "Drum Instrument" in track_names and "Drum Instrument" in intro_allowed_tracks and not any(t in track_names for t in ["Bd", "Snare / Clap", "Hh / Sh / Rd"]):
-            actions.append(scene_clip("Drum Instrument", section, "drums", scene_index, library_drums(message, bars, energy, genre=style), bars))
+            drum_inst_notes = library_drums(message, bars, energy, genre=style)
+            if leads_to_drop:
+                drum_inst_notes = inject_pre_drop_silence(drum_inst_notes, bars=bars, silence_beats=1.0)
+                drum_inst_notes.extend(generate_snare_roll(bars=bars, roll_bars=min(2, bars), silence_beats=1.0, pitch=38))
+            actions.append(scene_clip("Drum Instrument", section, "drums", scene_index, drum_inst_notes, bars))
         if "Ambience" in track_names and "Ambience" in intro_allowed_tracks:
             actions.append(scene_clip("Ambience", section, "texture", scene_index, ambience_notes(message, bars, energy, style), bars))
 
-    actions.extend(_build_section_transitions(sections))
+    actions.extend(_build_section_transitions(sections, create_track=False))
 
     volume_actions = []
     default_volumes = {
@@ -1326,6 +1356,7 @@ def expanded_sections(text: str, style: str | None = None) -> list[tuple[str, in
 def genre_words() -> list[str]:
     return [
         "acid house",
+        "afro house",
         "ambient house",
         "bass house",
         "chicago house",
@@ -1366,6 +1397,7 @@ def genre_words() -> list[str]:
         "afrobeats",
         "amapiano",
     ]
+
 
 
 ROLE_PALETTES: dict[str, list[str]] = {
@@ -1964,6 +1996,7 @@ def song_track_palette(text: str) -> dict[str, list[str]]:
         "Hook": role_palette(text, "hook"),
         "Chords": role_palette(text, "chords"),
         "Ambience": role_palette(text, "ambience"),
+        "FX / Riser": role_palette(text, "ambience"),
         "Bass": role_palette(text, "bass"),
         "Pad": role_palette(text, "pad"),
         "Snare / Clap": role_palette(text, "snare"),

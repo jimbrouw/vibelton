@@ -1,0 +1,155 @@
+{
+  "description": "Kick track carries an Arrangement filter sweep (automation is not copied by the scaffold).",
+  "expect": {
+    "automation_track": "kick"
+  },
+  "production": {
+    "schema_version": "vibelton.production-project-state/v1",
+    "tempo": 124.0,
+    "metre": [
+      4,
+      4
+    ],
+    "set_path": "/Sets/edge vibelton-working-copy.als",
+    "arrangement_readable": true,
+    "arrangement_end": 64.0,
+    "locators": [],
+    "tracks": [
+      {
+        "id": "kick",
+        "name": "1-Kick",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Kick",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null,
+        "arrangement_automation": [
+          {
+            "parameter": "Auto Filter Frequency",
+            "points": [
+              [
+                0,
+                0.2
+              ],
+              [
+                128,
+                0.9
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "id": "bass",
+        "name": "2-Bass",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Bass",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      },
+      {
+        "id": "hats",
+        "name": "3-Hats",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Hats",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      },
+      {
+        "id": "chords",
+        "name": "4-Chords",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Chords",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      }
+    ]
+  }
+}

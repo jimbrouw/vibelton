@@ -1,0 +1,124 @@
+{
+  "description": "Looped clips (loop length shorter than placed span) must never be chosen as sources; real Sets contain many.",
+  "expect": {
+    "never_sources": [
+      "kick@0",
+      "bass@0"
+    ]
+  },
+  "production": {
+    "schema_version": "vibelton.production-project-state/v1",
+    "tempo": 124.0,
+    "metre": [
+      4,
+      4
+    ],
+    "set_path": "/Sets/edge vibelton-working-copy.als",
+    "arrangement_readable": true,
+    "arrangement_end": 136.0,
+    "locators": [],
+    "tracks": [
+      {
+        "id": "kick",
+        "name": "1-Kick",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Kick looped to fill 72 beats",
+            "start_beat": 0.0,
+            "end_beat": 72.0,
+            "length": 24.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll"
+          },
+          {
+            "name": "Kick 16 bars",
+            "start_beat": 72.0,
+            "end_beat": 136.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      },
+      {
+        "id": "bass",
+        "name": "2-Bass",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Bass looped to fill 64 beats",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 8.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      },
+      {
+        "id": "hats",
+        "name": "3-Hats",
+        "type": "midi",
+        "mixer": {
+          "volume": 0.8,
+          "pan": 0.0,
+          "sends": [
+            0.0
+          ]
+        },
+        "devices": [],
+        "routing": "Main",
+        "arrangement_clips": [
+          {
+            "name": "Hats 16 bars",
+            "start_beat": 0.0,
+            "end_beat": 64.0,
+            "length": 64.0,
+            "metre": [
+              4,
+              4
+            ],
+            "fingerprint": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh"
+          }
+        ],
+        "session_clips": [],
+        "is_group": false,
+        "group_track_id": null
+      }
+    ]
+  }
+}
