@@ -34,6 +34,12 @@ LOCK = threading.RLock()
 MAX_ARRANGEMENT_BEAT = 3600.0
 # Most source tracks one scaffold uses; further tracks are listed as skipped.
 MAX_SCAFFOLD_SOURCES = 16
+# Roles a split drum track's lanes can take, in lane order.
+DRUM_LANE_ROLES = ("Kick", "Snare / Clap", "Hats", "Percussion", "Bass", "FX / Risers")
+# General MIDI drum notes, used when a pad's name says nothing (Drum Racks start at C1 = 36).
+_GM_DRUM_ROLES = {35: "Kick", 36: "Kick", 37: "Snare / Clap", 38: "Snare / Clap", 39: "Snare / Clap",
+                  40: "Snare / Clap", 42: "Hats", 44: "Hats", 46: "Hats", 49: "Hats", 51: "Hats",
+                  52: "Hats", 53: "Hats", 55: "Hats", 57: "Hats", 59: "Hats"}
 PROJECT_ANALYSIS_SCHEMA = "vibelton.project-analysis/v1"
 PLAN_SCHEMA = "vibelton.production-plan/v1"
 SNAPSHOT_SCHEMA = "vibelton.production-snapshot/v1"
@@ -44,7 +50,8 @@ SUPPORTED_ACTIONS = {"set_track_mixer", "set_device_parameter", "probe_arrangeme
                      "apply_song_sketch_template", "rollback_song_sketch_template",
                      "apply_arrangement_copies", "rollback_arrangement_copies",
                      "apply_session_scene_map", "rollback_session_scene_map",
-                     "apply_session_to_arrangement_copies", "rollback_session_to_arrangement_copies"}
+                     "apply_session_to_arrangement_copies", "rollback_session_to_arrangement_copies",
+                     "split_drum_track", "rollback_split_drum_track"}
 
 
 def _read(path: Path, default: Any = None) -> Any:
@@ -162,6 +169,30 @@ def _validate_action(action: Any, tracks: dict[str, dict[str, Any]]) -> dict[str
                 copies.append(dict(spec))
             scenes.append({"name": scene["name"], "bar_count": scene["bar_count"], "copies": copies})
         return {"type": "apply_session_scene_map", "source_scene_count": action["source_scene_count"], "scenes": scenes}
+    if isinstance(action, dict) and action.get("type") == "split_drum_track":
+        if set(action) != {"type", "track_id", "lanes"} or action["track_id"] not in tracks:
+            raise ValueError("Invalid drum split")
+        if not tracks[action["track_id"]].get("drum_rack"):
+            raise ValueError("That track has no Drum Rack to split")
+        lanes, seen = [], set()
+        if not isinstance(action["lanes"], list) or not 2 <= len(action["lanes"]) <= 8:
+            raise ValueError("A drum split needs two to eight lanes")
+        for lane in action["lanes"]:
+            if (not isinstance(lane, dict) or set(lane) != {"name", "role", "notes"} or not isinstance(lane["name"], str)
+                    or not lane["name"].strip() or len(lane["name"]) > 120 or lane["role"] not in DRUM_LANE_ROLES
+                    or not isinstance(lane["notes"], list) or not lane["notes"]
+                    or any(type(n) is not int or not 0 <= n <= 127 or n in seen for n in lane["notes"])):
+                raise ValueError("Invalid drum lane")
+            seen.update(lane["notes"])
+            lanes.append({"name": lane["name"], "role": lane["role"], "notes": sorted(lane["notes"])})
+        return {"type": "split_drum_track", "track_id": action["track_id"], "lanes": lanes}
+    if isinstance(action, dict) and action.get("type") == "rollback_split_drum_track":
+        if (set(action) != {"type", "created_tracks", "expected_post_rollback_observable_revision", "source_track_id", "unmute_source"}
+                or not isinstance(action["created_tracks"], list) or not isinstance(action["unmute_source"], bool)
+                or not isinstance(action["expected_post_rollback_observable_revision"], str)
+                or len(action["expected_post_rollback_observable_revision"]) != 64):
+            raise ValueError("Invalid drum split undo")
+        return copy.deepcopy(action)
     if isinstance(action, dict) and action.get("type") == "rollback_session_scene_map":
         if set(action) != {"type", "source_scene_count", "created_scenes", "expected_post_rollback_observable_revision"}:
             raise ValueError("Invalid Session rollback plan")
@@ -463,10 +494,18 @@ def _extract_audio_clips_in_set(state: dict[str, Any], production_tracks: list[d
     return audio_clips
 
 
-def _with_role_guess(track: dict[str, Any]) -> dict[str, Any]:
+def _with_role_guess(track: dict[str, Any], all_tracks: list[dict[str, Any]]) -> dict[str, Any]:
     """The role the scaffold would guess for this track, so the device shows the same guess."""
     role, confidence, reason = song_sketch._role_for(track)
     track.update(suggested_role=role, role_confidence=confidence, role_reason=reason)
+    lanes = split_lanes_of(track, all_tracks) if track.get("drum_rack") else []
+    if lanes:
+        track.update(split_into_lanes=len(lanes))
+    elif track.get("drum_rack"):
+        preview = drum_split_preview(track)
+        if preview:
+            track.update(drum_split_preview=[{"role": lane["role"], "pads": [p["name"] or "note %d" % p["note"] for p in lane["pads"]]}
+                                             for lane in preview])
     return track
 
 
@@ -487,7 +526,7 @@ def analyse() -> dict[str, Any]:
             "arrangement_end": state.get("arrangement_end"),
             "locators": copy.deepcopy(production.get("locators", [])),
         },
-        "tracks": [_with_role_guess(track) for track in copy.deepcopy(production["tracks"])],
+        "tracks": [_with_role_guess(track, production["tracks"]) for track in copy.deepcopy(production["tracks"])],
         "audio_clips_in_set": audio_clips_in_set,
         "missing_measurements": [
             item for item in ("audio_render", "loudness", "spectrum", "stereo", "automation")
@@ -679,6 +718,68 @@ def comparison_contract() -> dict[str, Any]:
         "measurements": None,
         "reason": "The current bridge has no verified render or audio-analysis primitive.",
     }
+
+
+def _drum_pad_role(pad: dict[str, Any]) -> tuple[str, str]:
+    """Role for one Drum Rack pad: from its name when that says something, else its note number."""
+    found = song_sketch._match_role(str(pad.get("name") or "").lower())
+    if found:
+        role = found[0] if found[0] in DRUM_LANE_ROLES else "Percussion"
+        return role, 'pad "%s"' % pad["name"]
+    return _GM_DRUM_ROLES.get(int(pad["note"]), "Percussion"), "note %d" % int(pad["note"])
+
+
+def drum_split_preview(track: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """Lanes a split would create for this track, or None when there is nothing to split."""
+    rack = track.get("drum_rack")
+    if not isinstance(rack, dict) or not rack.get("pads"):
+        return None
+    lanes: dict[str, dict[str, Any]] = {}
+    for pad in rack["pads"]:
+        role, why = _drum_pad_role(pad)
+        lane = lanes.setdefault(role, {"name": "%s · %s" % (track.get("name"), role), "role": role, "notes": [], "pads": []})
+        lane["notes"].append(int(pad["note"]))
+        lane["pads"].append({"note": int(pad["note"]), "name": pad.get("name") or "", "matched_by": why})
+    ordered = [lanes[role] for role in DRUM_LANE_ROLES if role in lanes]
+    return ordered if len(ordered) >= 2 else None
+
+
+def split_lanes_of(track: dict[str, Any], all_tracks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Tracks that are drum lanes split from ``track`` ("<name> · <role>")."""
+    prefix = "%s · " % track.get("name")
+    return [other for other in all_tracks if other is not track and str(other.get("name", "")).startswith(prefix)
+            and str(other["name"])[len(prefix):] in DRUM_LANE_ROLES]
+
+
+def create_drum_split_plan(payload: dict[str, Any]) -> dict[str, Any]:
+    """Draft splitting one Drum Rack track into a lane per drum role; nothing reaches Live yet."""
+    if not isinstance(payload, dict) or set(payload) != {"track_id"}:
+        raise ValueError("Drum split takes track_id")
+    with LOCK:
+        _state, project = _ready_state()
+        tracks = _tracks_by_id(project)
+        track = tracks.get(payload["track_id"])
+        if track is None:
+            raise ValueError("That track is no longer in the Set; press Refresh")
+        if not track.get("drum_rack"):
+            raise ValueError("%s has no Drum Rack playing MIDI clips, so there is nothing to split" % track.get("name"))
+        if split_lanes_of(track, project["tracks"]):
+            raise ValueError("%s is already split into drum lanes. Undo that split first." % track.get("name"))
+        lanes = drum_split_preview(track)
+        if not lanes:
+            raise ValueError("Every pad %s plays has the same role, so there is nothing to split" % track.get("name"))
+        plan = create_plan({"intent": "Split %s into %d drum lanes" % (track.get("name"), len(lanes)),
+                            "snapshot_name": "Before splitting %s" % track.get("name"),
+                            "actions": [{"type": "split_drum_track", "track_id": track["id"],
+                                         "lanes": [{k: lane[k] for k in ("name", "role", "notes")} for lane in lanes]}]})
+        plan.update(workflow="drum_split", source_track_name=track.get("name"), lanes=lanes,
+                    warnings=["Each lane is a copy of %s with its Drum Rack and clips, keeping only that role's notes. "
+                              "The original is muted so nothing plays twice; its clips are not changed, and the scaffold "
+                              "uses the lanes instead." % track.get("name")],
+                    rollback_guarantee="Undo deletes only the lanes this split created, if you haven't edited them, and unmutes the original.")
+        _write(ROOT / "plans" / (plan["id"] + ".json"), plan)
+        _append_operation("drum_split_drafted", plan["id"], {"lane_count": len(lanes)})
+        return plan
 
 
 def create_plan(payload: dict[str, Any]) -> dict[str, Any]:
@@ -1295,6 +1396,15 @@ def _snapshot_for_plan(plan: dict[str, Any], production: dict[str, Any]) -> dict
         if action["type"] == "rollback_session_scene_map":
             before.append({"session_rollback": True})
             continue
+        if action["type"] == "split_drum_track":
+            before.append({"drum_split": {"track_id": action["track_id"], "tracks": copy.deepcopy(production["tracks"])}})
+            inverse_actions.append({"type": "rollback_split_drum_track", "created_tracks": [],
+                                    "expected_post_rollback_observable_revision": _observable_rollback_revision(production),
+                                    "source_track_id": action["track_id"], "unmute_source": False})
+            continue
+        if action["type"] == "rollback_split_drum_track":
+            before.append({"drum_split_rollback": True})
+            continue
         if action["type"] == "apply_arrangement_copies":
             before.append({"arrangement": {"tracks": copy.deepcopy(production["tracks"]),
                                             "locators": copy.deepcopy(production.get("locators", [])),
@@ -1700,6 +1810,14 @@ def rollback(payload: dict[str, Any]) -> dict[str, Any]:
                 action["created_scenes"] = copy.deepcopy(execution.get("created_scenes", []))
                 if not action["created_scenes"]:
                     raise ValueError("The Session job recorded no scenes to roll back")
+            if action.get("type") == "rollback_split_drum_track":
+                action["created_tracks"] = copy.deepcopy(execution.get("created_tracks", []))
+                # Splits recorded before muting existed lack these; such a split never muted anything.
+                action.setdefault("source_track_id", next((item["drum_split"]["track_id"] for item in snapshot.get("before", [])
+                                                           if "drum_split" in item), None))
+                action["unmute_source"] = bool(execution.get("muted_source"))
+                if not action["created_tracks"]:
+                    raise ValueError("The drum split recorded no lanes to remove")
             if action.get("type") == "rollback_arrangement_copies":
                 # Re-read Live: delete only recorded clips that are still exactly as placed.
                 records = _placement_records(original, persist=not dry_run)
@@ -1796,6 +1914,13 @@ def rollback(payload: dict[str, Any]) -> dict[str, Any]:
         # Inverses are generated only from the captured snapshot and applied readback.
         tracks = _tracks_by_id(production)
         inverse_actions = [_validate_action(action, tracks) for action in inverse_actions]
+        lanes = [record for action in inverse_actions if action["type"] == "rollback_split_drum_track"
+                 for record in action["created_tracks"]]
+        if dry_run and lanes:
+            return {"dry_run": True, "job_id": original["id"], "total": len(lanes), "removable_count": len(lanes),
+                    "would_remove": [], "skipped": [],
+                    "summary": "Would delete the %d drum lanes this split made: %s. The original track stays and is unmuted." % (
+                        len(lanes), ", ".join(record["name"] for record in lanes))}
         if dry_run:  # non-arrangement jobs: nothing per-clip to preview, and nothing may be queued
             return {"dry_run": True, "job_id": original["id"], "total": len(inverse_actions),
                     "removable_count": len(inverse_actions), "would_remove": [], "skipped": [],
@@ -2345,6 +2470,9 @@ def create_scaffold_plan(payload: dict[str, Any] | None = None) -> dict[str, Any
             if track.get("is_group"):
                 _note_skipped(skipped, track, arr_clips, "group_track")
                 continue
+            if track.get("drum_rack") and split_lanes_of(track, project["tracks"]):
+                _note_skipped(skipped, track, arr_clips, "split_into_lanes")   # its lanes play instead
+                continue
             role = user_roles.get(track_id)
             if not role and active_roles and "roles" in active_roles:
                 role = active_roles["roles"].get(track_id)
@@ -2389,6 +2517,8 @@ def create_scaffold_plan(payload: dict[str, Any] | None = None) -> dict[str, Any
             for track_id, track in tracks.items():
                 if track.get("is_group"):
                     continue
+                if track.get("drum_rack") and split_lanes_of(track, project["tracks"]):
+                    continue   # its lanes play instead
                 role = user_roles.get(track_id) or (active_roles.get("roles", {}).get(track_id) if active_roles else None)
                 if not role and track_id in remembered:
                     role = remembered[track_id] or role_memory.IGNORE

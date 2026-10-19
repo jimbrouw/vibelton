@@ -366,6 +366,7 @@ class Handler(BaseHTTPRequestHandler):
                         'locator-probe': production.probe_locators,
                         'role-memory': production.save_role_memory,
                         'arranger-selection': production.save_arranger_selection,
+                        'drum-split-plan': production.create_drum_split_plan,
                         'arrangement-options': production.create_house_arrangement_options,
                         'arrangement-selection': production.select_house_arrangement,
                         'arrangement-execution-plan': production.create_house_arrangement_execution_plan,

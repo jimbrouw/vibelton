@@ -175,6 +175,10 @@ def _role_for(track: dict[str, Any]) -> tuple[str | None, float, str]:
 
     The track name is trusted over clip names, and clip names over device names, so a vocal
     track named "Vox main" stays a Vocal even when one of its devices mentions keys."""
+    lane_role = str(track.get("name", "")).rpartition(" · ")[2]
+    if " · " in str(track.get("name", "")) and lane_role in {role for _group, role, _kind in TRACKS}:
+        # A drum lane made by splitting a Drum Rack ("808 kick kit · Hats") is exactly what its suffix says.
+        return lane_role, 0.99, "Drum lane for %s" % lane_role
     devices = [device for device in track.get("devices", []) if isinstance(device, dict)]
     clips = [clip for key in ("arrangement_clips", "session_clips")
              for clip in track.get(key, []) if isinstance(clip, dict)]

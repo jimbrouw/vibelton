@@ -236,6 +236,7 @@
   // Precedence: this session's choice > exact-revision confirmation > remembered for this Set > name guess.
   function resolveRole(track) {
     const remembered = rememberedRoles[track.id];
+    if (track.split_into_lanes && !userStemOverrides[track.id]) return 'Ignore / Unknown'; // its drum lanes play instead
     return userStemOverrides[track.id]
       || (activeRoles && activeRoles.roles ? activeRoles.roles[track.id] : null)
       || (remembered ? (remembered.role || 'Ignore / Unknown') : null)
@@ -286,6 +287,92 @@
     drawEnergyCurve();
   });
 
+  // A remembered role Vibelton is not sure still belongs to this track.
+  function reviewNote(remembered) {
+    return remembered.matched_by === 'order'
+      ? 'Remembered from a same-named track — check this role'
+      : 'Remembered by position — check this role';
+  }
+
+  // --- Drum Rack splitting: one lane per drum role (step 1 drafts, step 2 sends to Live) ---
+  let pendingSplit = null;   // { trackId, plan }
+
+  async function prepareDrumSplit(track) {
+    if (isBusy) return;
+    if (!workingCopyGate.allowed || !workingCopyConfirmed) {
+      elStatusFeedback.textContent = workingCopyGate.allowed ? 'Confirm the working copy before splitting drums.' : workingCopyGate.message;
+      elStatusFeedback.className = 'status-feedback error';
+      return;
+    }
+    try {
+      clearFailure();
+      const plan = await api('/api/production/drum-split-plan', 'POST', { track_id: track.id });
+      pendingSplit = { trackId: track.id, plan };
+    } catch (err) {
+      pendingSplit = null;
+      showFailure(err, 'Could not prepare the drum split.');
+    }
+    renderStems();
+  }
+
+  function drumSplitConfirm(pending) {
+    const box = document.createElement('div');
+    box.className = 'stem-split-confirm';
+    const lanes = pending.plan.lanes || [];
+    const text = document.createElement('div');
+    text.textContent = `Make ${lanes.length} lanes: ` +
+      lanes.map(l => `${l.role} (${l.pads.map(p => p.name || 'note ' + p.note).join(', ')})`).join(' · ');
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'stem-split-go';
+    go.textContent = 'Split';
+    go.addEventListener('click', () => applyDrumSplit(pending));
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => { pendingSplit = null; renderStems(); });
+    box.append(text, go, cancel);
+    return box;
+  }
+
+  async function applyDrumSplit(pending) {
+    if (isBusy) return;
+    isBusy = true;
+    pendingSplit = null;
+    updateScaffoldButtonState();
+    renderStems();
+    elStatusFeedback.textContent = `Splitting ${pending.plan.source_track_name}…`;
+    elStatusFeedback.className = 'status-feedback';
+    try {
+      const job = await api('/api/production/apply', 'POST', { plan_id: pending.plan.id, working_copy_confirmed: true });
+      currentPlan = pending.plan;
+      lastAppliedJob = job;
+      let done = false;
+      for (let i = 0; i < 20 && !done; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        const statusData = await api(`/api/production/status/${job.id}`);
+        if (statusData.status === 'Applied') {
+          lastAppliedJob = statusData;
+          done = true;
+        } else if (['Failed', 'Interrupted', 'Partial failure'].includes(statusData.status)) {
+          throw jobFailure(statusData, `Drum split failed with status: ${statusData.status}`);
+        }
+      }
+      const lanes = (pending.plan.lanes || []).length;
+      elStatusFeedback.textContent = done
+        ? `✓ Split ${pending.plan.source_track_name} into ${lanes} lanes and muted the original. Undo removes them.`
+        : 'Sent to Live. Press Refresh to check the new lanes.';
+      elStatusFeedback.className = done ? 'status-feedback success' : 'status-feedback';
+    } catch (err) {
+      if (err.job && err.explanation && err.explanation.undo_available) lastAppliedJob = err.job;
+      showFailure(err, 'Could not split the drum track.');
+    } finally {
+      isBusy = false;
+      updateScaffoldButtonState();
+      await refreshAllData();
+    }
+  }
+
   // --- Step 1: Render Stems ---
   function renderStems() {
     if (!analysis || !analysis.tracks) {
@@ -316,11 +403,14 @@
       const guessed = 'role_confidence' in track ? Number(track.role_confidence) || 0 : (suggested ? 0.6 : 0);
       let confClass = 'conf-med';
       let why;
-      if (override || confirmed || (remembered && !remembered.needs_review)) {
+      if (track.split_into_lanes && !override) {
+        confClass = 'conf-high';
+        why = `Split into ${track.split_into_lanes} drum lanes; the lanes play instead`;
+      } else if (override || confirmed || (remembered && !remembered.needs_review)) {
         confClass = 'conf-high';
         why = override ? 'You chose this role' : confirmed ? 'Confirmed role' : 'Remembered for this Set';
       } else if (remembered) {
-        why = 'Remembered by position — check this role';
+        why = reviewNote(remembered);
       } else if (!suggested) {
         confClass = 'conf-low';
         why = 'No clue in the track, clip or device names — pick a role';
@@ -329,9 +419,14 @@
         why = `Guess ${Math.round(guessed * 100)}% · ${(track.role_reason || 'from the track name').replace(/^\w/, c => c.toLowerCase())}`;
       }
       const memoryNote = remembered && !override
-        ? (remembered.needs_review ? 'Remembered by position — check this role'
+        ? (remembered.needs_review ? reviewNote(remembered)
            : remembered.renamed_from ? `Remembered (was "${remembered.renamed_from}")` : 'Remembered for this Set')
         : '';
+
+      // A Drum Rack the bridge doesn't describe means Live is still running an older Vibelton script.
+      if (!('drum_rack' in track) && (track.devices || []).some(d => d.class_name === 'DrumGroupDevice')) {
+        why = `Restart Live to enable ✂ Split · ${why}`;
+      }
 
       // Clip summary
       const arrClips = track.arrangement_clips || [];
@@ -352,12 +447,17 @@
           <span class="confidence-indicator ${confClass}" title="${escapeHtml(why)}"></span>
           <span class="stem-track-name">${escapeHtml(track.name)}</span>
           <span class="stem-source-badge">${clipInfo}</span>
+          ${track.drum_split_preview && !isBusy ? `<button type="button" class="stem-split-btn" title="Put each drum sound on its own lane: ${escapeHtml(track.drum_split_preview.map(l => l.role).join(', '))}">✂ Split</button>` : ''}
           <span class="stem-role-reason">${escapeHtml(why)}</span>
         </div>
         <select class="stem-role-select" data-track-id="${track.id}">
           ${ALL_ROLES.map(r => `<option value="${r}" ${r === role ? 'selected' : ''}>${r}</option>`).join('')}
         </select>
       `;
+
+      const splitButton = row.querySelector('.stem-split-btn');
+      if (splitButton) splitButton.addEventListener('click', () => prepareDrumSplit(track));
+      if (pendingSplit && pendingSplit.trackId === track.id) row.appendChild(drumSplitConfirm(pendingSplit));
 
       const select = row.querySelector('.stem-role-select');
       select.addEventListener('change', (e) => {

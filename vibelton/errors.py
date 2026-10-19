@@ -67,6 +67,7 @@ SKIP_REASON_SHORT = {
     "no_role": "on tracks with no recognised role", "group_track": "on group tracks",
     "role_ignored": "on tracks you set to ignore", "role_already_used": "on a second track with an already-used role",
     "source_limit": "on tracks beyond the 16-track limit",
+    "split_into_lanes": "on drum tracks already split into lanes",
 }
 # (count-aware plain sentence, what to do) per reason
 SKIP_REASON_TEXT = {
@@ -80,6 +81,7 @@ SKIP_REASON_TEXT = {
     "role_ignored": ("{n} clips are on tracks you set to ignore.", "Give those stems a role if you want them used."),
     "role_already_used": ("{n} clips are on a second track with a role that is already used.", "Give that track a different role if you want it used."),
     "source_limit": ("{n} tracks were left out because a scaffold uses at most 16 tracks.", "Set the stems you don't need to Ignore."),
+    "split_into_lanes": ("{n} clips are on drum tracks that were split; their lanes are used instead.", "Undo the split to use the whole drum track."),
 }
 
 

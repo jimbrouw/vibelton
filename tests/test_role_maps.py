@@ -160,6 +160,10 @@ class RoleGuessTests(unittest.TestCase):
         self.assertEqual(("Percussion", 0.6), (role, confidence))
         self.assertIn("Drum Rack", reason)
 
+    def test_a_drum_lane_is_its_suffix_even_if_the_kit_name_says_kick(self) -> None:
+        self.assertEqual(("Hats", 0.99), self.guess("808 kick kit · Hats")[:2])
+        self.assertEqual("Kick", self.guess("808 kick kit")[0])
+
     def test_no_clue_is_reported_as_unknown(self) -> None:
         self.assertEqual((None, 0.0), self.guess("19-MIDI")[:2])
 
