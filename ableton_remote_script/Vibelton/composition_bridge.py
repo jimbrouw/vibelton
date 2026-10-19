@@ -282,6 +282,9 @@ class CompositionBridge:
                 'arrangement_clips': arrangement,
                 'session_clips': session_clips,
             })
+            drum_rack = self._production_drum_rack(track)
+            if drum_rack is not None:
+                tracks[-1]['drum_rack'] = drum_rack
         state = {
             'schema_version': 'vibelton.production-project-state/v1',
             'session_id': self._composition_session,
@@ -356,6 +359,30 @@ class CompositionBridge:
                         prepared_copies.append((track, track.clip_slots[index], spec))
                     prepared_scenes.append((scene, prepared_copies))
                 prepared.append(('session_apply', (item['source_scene_count'], prepared_scenes)))
+                continue
+            if item.get('type') == 'split_drum_track':
+                track = tracks.get(item.get('track_id'))
+                lanes = item.get('lanes')
+                if (set(item) != {'type', 'track_id', 'lanes'} or track is None or
+                        self._production_drum_rack_device(track) is None or not isinstance(lanes, list) or not 2 <= len(lanes) <= 8 or
+                        not callable(getattr(self.song(), 'duplicate_track', None))):
+                    raise RuntimeError('That track has no Drum Rack to split, or this Live cannot duplicate tracks')
+                seen = set()
+                for lane in lanes:
+                    if (not isinstance(lane, dict) or set(lane) != {'name', 'role', 'notes'} or
+                            not isinstance(lane['name'], str) or not lane['name'].strip() or len(lane['name']) > 120 or
+                            not isinstance(lane['notes'], list) or not lane['notes'] or
+                            any(type(n) is not int or not 0 <= n <= 127 or n in seen for n in lane['notes'])):
+                        raise RuntimeError('Invalid drum lane')
+                    seen.update(lane['notes'])
+                prepared.append(('drum_split', (track, lanes)))
+                continue
+            if item.get('type') == 'rollback_split_drum_track':
+                if (set(item) - {'source_track_id', 'unmute_source'} != {'type', 'created_tracks', 'expected_post_rollback_observable_revision'} or
+                        not isinstance(item['created_tracks'], list) or not item['created_tracks'] or
+                        not callable(getattr(self.song(), 'delete_track', None))):
+                    raise RuntimeError('Invalid drum split undo')
+                prepared.append(('drum_split_rollback', item))
                 continue
             if item.get('type') == 'rollback_session_scene_map':
                 if set(item) != {'type', 'source_scene_count', 'created_scenes', 'expected_post_rollback_observable_revision'}:
@@ -542,6 +569,7 @@ class CompositionBridge:
         special_kinds = (
             'template', 'template_rollback', 'arrangement_apply', 'arrangement_rollback',
             'session_apply', 'session_rollback', 'session_to_arrangement_apply', 'session_to_arrangement_rollback',
+            'drum_split', 'drum_split_rollback',
         )
         if any(kind in special_kinds for kind, _payload in prepared):
             kinds = [kind for kind, _payload in prepared]
@@ -1031,6 +1059,117 @@ class CompositionBridge:
             failed(exc)
         return True
 
+    # Drum Rack splitting: one lane per drum role, each a duplicate of the drum track that keeps
+    # only that role's notes.  The original track is never changed.
+    def _production_track_midi_clips(self, track):
+        clips = []
+        for scene_index, slot in enumerate(getattr(track, 'clip_slots', [])):
+            if getattr(slot, 'has_clip', False) and getattr(slot.clip, 'is_midi_clip', False):
+                clips.append(('s%d' % scene_index, slot.clip))
+        if not bool(getattr(track, 'is_foldable', False)):
+            for clip in track.arrangement_clips:
+                if getattr(clip, 'is_midi_clip', False):
+                    clips.append(('a%.4f' % float(clip.start_time), clip))
+        return clips
+
+    def _production_drum_rack_device(self, track):
+        if not bool(getattr(track, 'has_midi_input', False)):
+            return None
+        for device in track.devices:
+            if bool(getattr(device, 'can_have_drum_pads', False)) and bool(getattr(device, 'has_drum_pads', True)):
+                return device
+        return None
+
+    def _production_drum_rack(self, track):
+        """The pads this track's MIDI clips actually play, with their names (None without a Drum Rack)."""
+        device = self._production_drum_rack_device(track)
+        if device is None:
+            return None
+        used = set()
+        for _key, clip in self._production_track_midi_clips(track):
+            used.update(note[0] for note in (self._composition_read_notes(clip) or []))
+        names = {}
+        for pad in getattr(device, 'drum_pads', []):
+            note = int(getattr(pad, 'note', -1))
+            if note in used:
+                names[note] = str(getattr(pad, 'name', '')) if list(getattr(pad, 'chains', [])) else ''
+        return {'device_name': str(device.name),
+                'pads': [{'note': note, 'name': names.get(note, '')} for note in sorted(used)]}
+
+    def _production_clip_fingerprints(self, track):
+        return {key: self._composition_clip_snapshot(clip) for key, clip in self._production_track_midi_clips(track)}
+
+    def _production_split_drum_track(self, track, lanes, result, complete, failed):
+        song = self.song()
+        created = []
+        try:
+            index = list(song.tracks).index(track)
+            original = self._production_clip_fingerprints(track)
+            used = {note for lane in lanes for note in lane['notes']}
+            # Each duplicate lands straight after the original, so create them in reverse to end in role order.
+            for lane in reversed(lanes):
+                song.duplicate_track(index)
+                lane_track = song.tracks[index + 1]
+                lane_track.name = lane['name']
+                keep = set(lane['notes'])
+                for _key, clip in self._production_track_midi_clips(lane_track):
+                    span = max(float(clip.length), float(getattr(clip, 'loop_end', 0.0)),
+                               float(getattr(clip, 'end_marker', 0.0))) + 4.0
+                    for pitch in sorted(used - keep):
+                        if hasattr(clip, 'remove_notes_extended'):
+                            clip.remove_notes_extended(pitch, 1, 0.0, span)
+                        else:
+                            clip.remove_notes(0.0, pitch, span, 1)
+                record = {'track_id': self._composition_track_id(lane_track), 'name': lane['name'], 'role': lane['role'],
+                          'notes': sorted(keep), 'clip_fingerprints': self._production_clip_fingerprints(lane_track)}
+                created.insert(0, record)
+                result['created_tracks'] = created
+                if str(lane_track.name) != lane['name']:
+                    raise RuntimeError('Drum lane name readback did not match')
+                for _key, clip in self._production_track_midi_clips(lane_track):
+                    if any(note[0] not in keep for note in (self._composition_read_notes(clip) or [])):
+                        raise RuntimeError('Drum lane still holds notes from another role')
+            if self._production_clip_fingerprints(track) != original:
+                raise RuntimeError('The original drum track changed during the split')
+            # The lanes add up to the original, so mute it: otherwise every drum plays twice wherever
+            # the track already has Arrangement clips.  Undo unmutes it again.
+            if not bool(getattr(track, 'mute', False)):
+                track.mute = True
+                result['muted_source'] = True
+                if not bool(getattr(track, 'mute', False)):
+                    raise RuntimeError('Live did not mute the original drum track')
+            result.update(created_tracks=created, completed_actions=1, drum_split_verified=True)
+            complete()
+        except Exception as exc:
+            result['created_tracks'] = created
+            failed(exc)
+        return True
+
+    def _production_rollback_split_drum_track(self, item, result, complete, failed):
+        song = self.song()
+        try:
+            by_id = {self._composition_track_id(track): track for track in song.tracks}
+            targets = []
+            for record in item['created_tracks']:
+                track = by_id.get(record['track_id'])
+                if track is None or str(track.name) != record['name']:
+                    raise RuntimeError('A drum lane was renamed or deleted; undo it by hand')
+                if self._production_clip_fingerprints(track) != record['clip_fingerprints']:
+                    raise RuntimeError('A drum lane was edited after the split; undo it by hand')
+                targets.append(track)
+            for track in sorted(targets, key=lambda t: list(song.tracks).index(t), reverse=True):
+                song.delete_track(list(song.tracks).index(track))
+            source = by_id.get(item.get('source_track_id'))
+            if item.get('unmute_source') and source is not None and bool(getattr(source, 'mute', False)):
+                source.mute = False
+            if self._production_observable_rollback_revision() != item['expected_post_rollback_observable_revision']:
+                raise RuntimeError('Removing the drum lanes did not restore the original Set')
+            result.update(deleted_tracks=len(targets), drum_split_rollback_verified=True)
+            complete()
+        except Exception as exc:
+            failed(exc)
+        return True
+
     def _production_apply_session_scenes(self, source_count, scenes, result, complete, failed):
         song = self.song()
         created = []
@@ -1200,6 +1339,23 @@ class CompositionBridge:
                         self._production_apply_session_scenes(payload[0], payload[1], result, complete_session, fail_session)
                     else:
                         self._production_rollback_session_scenes(payload, result, complete_session, fail_session)
+                    return
+                if kind in ('drum_split', 'drum_split_rollback'):
+                    def complete_split():
+                        result.update(action_index=index, completed_actions=1, status='Applied', before=before, after=after,
+                                      post_revision=self._production_state()['revision'], finished_at=time.time())
+                        persist()
+                        self._log('production_applied', 'Drum lanes changed and read back', {'job_id': job_id})
+
+                    def fail_split(exc):
+                        result.update(status='Partial failure' if result.get('created_tracks') and kind == 'drum_split' else 'Failed',
+                                      error=str(exc), post_revision=self._production_state()['revision'], finished_at=time.time())
+                        persist()
+
+                    if kind == 'drum_split':
+                        self._production_split_drum_track(payload[0], payload[1], result, complete_split, fail_split)
+                    else:
+                        self._production_rollback_split_drum_track(payload, result, complete_split, fail_split)
                     return
                 if kind in ('session_to_arrangement_apply', 'session_to_arrangement_rollback'):
                     def complete_s2a():

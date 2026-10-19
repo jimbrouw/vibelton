@@ -33,10 +33,10 @@ class MatchingTests(unittest.TestCase):
         self.assertEqual({'n1': 'name', 'n2': 'name'}, {t: m['matched_by'] for t, m in result['matches'].items()})
         self.assertEqual('Bass', result['matches']['n2']['role'])
 
-    def test_duplicate_names_fall_back_to_position_and_ask_for_review(self) -> None:
+    def test_duplicate_names_pair_in_order_and_ask_for_review(self) -> None:
         entries = [entry('o1', 'Serum 2', 5, 'Bass'), entry('o2', 'Serum 2', 7, 'Chords')]
         result = role_memory.resolve(entries, [track('n1', 'Serum 2', 5), track('n2', 'Serum 2', 7)])
-        self.assertEqual({'n1': 'position', 'n2': 'position'}, {t: m['matched_by'] for t, m in result['matches'].items()})
+        self.assertEqual({'n1': 'order', 'n2': 'order'}, {t: m['matched_by'] for t, m in result['matches'].items()})
         self.assertTrue(all(m['needs_review'] for m in result['matches'].values()))
         self.assertEqual('Bass', result['matches']['n1']['role'])
 
@@ -192,6 +192,24 @@ class ServiceTests(unittest.TestCase):
         for payload in ({}, {'roles': {}, 'clear': True}, {'roles': 'x'}, {'roles': {self.ids[0]: 'Nope'}}):
             with self.subTest(payload=payload), self.assertRaises(ValueError):
                 production.save_role_memory(payload)
+
+
+
+class InsertedTracksTests(unittest.TestCase):
+    def test_live_renumbering_does_not_move_roles_onto_new_tracks(self) -> None:
+        # Eight drum lanes inserted above: Live renumbers "12-Guitar" to "20-Guitar", and the lanes sit
+        # where the guitars were.  Roles must follow the guitars, not the old positions.
+        entries = [entry('o%d' % n, '%d-Guitar' % (12 + n), 11 + n, 'Lead') for n in range(4)]
+        entries.append(entry('o9', '10-Basic Reese Bass', 9, 'Bass'))
+        tracks = [track('lane%d' % n, '808 kick kit · %s' % role, 11 + n)
+                  for n, role in enumerate(('Kick', 'Snare / Clap', 'Hats', 'Percussion'))]
+        tracks += [track('g%d' % n, '%d-Guitar' % (20 + n), 19 + n) for n in range(4)]
+        tracks.append(track('b', '18-Basic Reese Bass', 17))
+        result = role_memory.resolve(entries, tracks)
+        self.assertFalse(any(t.startswith('lane') for t in result['matches']))
+        self.assertEqual({'g0', 'g1', 'g2', 'g3'}, {t for t, m in result['matches'].items() if m['role'] == 'Lead'})
+        self.assertEqual(('Bass', 'name', False), tuple(result['matches']['b'][k] for k in ('role', 'matched_by', 'needs_review')))
+        self.assertTrue(all(result['matches']['g%d' % n]['needs_review'] for n in range(4)))
 
 
 if __name__ == '__main__':

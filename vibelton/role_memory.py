@@ -2,11 +2,13 @@
 
 Unlike ``role_maps`` confirmations (bound to one exact Live revision), this memory
 survives edits, reloads and restarts.  Entries are keyed by the Set's file path and
-re-attached to tracks by id, then by unique name, then by position (flagged for review).
+re-attached to tracks by id, then by unique name (ignoring Live's track number), then by
+position (flagged for review).
 Entries whose track disappeared are kept as *orphaned* so undoing a deletion restores them.
 """
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -21,6 +23,15 @@ def _normalise(role: Any, allowed: tuple[str, ...]) -> str | None:
     if role not in allowed:
         raise ValueError("Unsupported track role '%s'" % role)
     return role
+
+
+_LIVE_NUMBER = re.compile(r"^\d+-")
+
+
+def _base_name(name: Any) -> str:
+    """A track name without the number Live puts in front ("12-Guitar" -> "Guitar"); that number
+    changes whenever tracks are added or removed above it."""
+    return _LIVE_NUMBER.sub("", str(name or ""))
 
 
 def playable(tracks: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -60,6 +71,19 @@ def resolve(entries: list[dict[str, Any]], tracks: list[dict[str, Any]]) -> dict
             attach(index, same[0], "name")
             free_tracks.remove(same[0])
             free_entries.remove(index)
+
+    # 2b. same name apart from Live's track number (tracks were added or removed above).  Several
+    # tracks sharing a name ("12-Guitar", "13-Guitar"…) pair up in Set order when both sides count the same.
+    for base in sorted({_base_name(entries[i].get("track_name")) for i in free_entries} - {""}):
+        group = sorted((i for i in free_entries if _base_name(entries[i].get("track_name")) == base),
+                       key=lambda i: entries[i].get("track_index") if isinstance(entries[i].get("track_index"), int) else 0)
+        same = sorted((t for t in free_tracks if _base_name(t.get("name")) == base),
+                      key=lambda t: t.get("index") if isinstance(t.get("index"), int) else 0)
+        if group and len(same) == len(group):
+            for index, track in zip(group, same):   # a pairing by order is a guess when names repeat: ask for review
+                attach(index, track, "name" if len(group) == 1 else "order", review=len(group) > 1)
+                free_tracks.remove(track)
+                free_entries.remove(index)
 
     # 3. same position and type, when that pairing is unambiguous: probably renamed, so ask for review
     for index in list(free_entries):

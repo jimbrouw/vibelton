@@ -84,7 +84,7 @@ class HouseArrangementTests(unittest.TestCase):
 
     def test_additional_genres_have_three_valid_distinct_maps(self) -> None:
         state, production = disposable_loop_state()
-        for genre in ("Techno", "UK Garage", "Hip Hop", "Disco / Nu-disco"):
+        for genre in arrangements.OTHER_GENRE_VARIANTS:
             with self.subTest(genre=genre):
                 options = arrangements.build_options(genre, state, production)
                 arrangements.validate_options(options)
@@ -97,6 +97,47 @@ class HouseArrangementTests(unittest.TestCase):
                     self.assertEqual(7, len(variant["sections"]))
                     self.assertEqual(variant["total_bars"], variant["sections"][-1]["end_bar"])
                     self.assertTrue(all(item["time"] == item["bar"] * 4 for item in variant["intended_locators"]))
+
+
+
+
+class GenreCatalogueTests(unittest.TestCase):
+    def test_catalogue_lists_every_supported_genre_once(self) -> None:
+        catalogue = arrangements.genre_catalogue()
+        names = [entry["genre"] for entry in catalogue["genres"]]
+        self.assertEqual(sorted(arrangements.SUPPORTED_GENRES), sorted(names))
+        self.assertEqual(len(names), len(set(names)))
+        self.assertIn(catalogue["default_genre"], names)
+
+    def test_catalogue_variants_match_the_scaffold_variants(self) -> None:
+        for entry in arrangements.genre_catalogue()["genres"]:
+            with self.subTest(genre=entry["genre"]):
+                ids = [variant["id"] for variant in entry["variants"]]
+                self.assertEqual(list(arrangements.GENRE_VARIANTS[entry["genre"]]), ids)
+                self.assertIn(entry["default_variant"], ids)
+                low, high = entry["bpm_range"]
+                self.assertTrue(low <= entry["bpm_default"] <= high)
+                for variant in entry["variants"]:
+                    self.assertGreater(variant["target_duration_seconds"], 0)
+                    self.assertRegex(variant["target_duration"], r"^\d+:\d\d$")
+
+    def test_borrowed_genre_dna_does_not_borrow_the_tempo(self) -> None:
+        tempos = {entry["genre"]: entry["bpm_range"] for entry in arrangements.genre_catalogue()["genres"]}
+        self.assertEqual([138, 142], tempos["Grime"])
+        self.assertEqual([140, 180], tempos["Hyperpop"])
+        self.assertEqual([84, 96], tempos["Boom Bap"])
+        self.assertNotEqual(tempos["Trap"], tempos["Hyperpop"])
+
+    def test_new_genres_build_valid_maps_at_their_own_tempos(self) -> None:
+        for entry in arrangements.genre_catalogue()["genres"]:
+            for bpm in sorted({entry["bpm_default"], *entry["bpm_range"]}):
+                with self.subTest(genre=entry["genre"], bpm=bpm):
+                    options = arrangements.build_options(
+                        entry["genre"], {"tempo": bpm}, {"tempo": float(bpm), "tracks": [], "metre": [4, 4]})
+                    arrangements.validate_options(options)
+                    roles = {role for variant in options["variants"] for section in variant["sections"]
+                             for role in section["active_track_roles"]}
+                    self.assertLessEqual(roles, set(arrangements.ROLE_ORDER))
 
 
 if __name__ == "__main__":

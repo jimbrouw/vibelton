@@ -6,6 +6,7 @@ bridge state before it becomes a plan.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
@@ -124,31 +125,77 @@ def detect_key_hint(track: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+# (words, role, confidence).  Checked in this order within one source, so "bass drum" is a Kick
+# before it can be a Bass.  Words of three letters or fewer must stand alone ("bd", "vox", "sub"),
+# (a plural "s" is fine), so they don't match inside other words; longer words may sit inside a
+# name ("hihat", "Basslines").
+ROLE_RULES: tuple[tuple[tuple[str, ...], str, float], ...] = (
+    (("kick", "kik", "bd", "bass drum", "bassdrum"), "Kick", 0.98),
+    (("snare", "clap", "sd", "rim", "rimshot", "snap"), "Snare / Clap", 0.94),
+    (("hat", "hihat", "hh", "oh", "cymbal", "ride", "top loop", "tops"), "Hats", 0.92),
+    (("perc", "shaker", "tamb", "conga", "bongo", "tom", "toms", "drmlp", "drm", "drum", "drums",
+      "drumloop", "break", "breaks", "kit"), "Percussion", 0.86),
+    (("808", "bass", "sub", "reese", "donk", "moog"), "Bass", 0.92),
+    (("chord", "chords", "piano", "keys", "rhodes", "wurli", "organ", "epiano", "electric", "electro",
+      "studioverse", "stab", "stabs", "operator"), "Chords", 0.8),
+    (("lead", "solo", "melody", "guitar", "gtr", "flute", "sax", "horn", "brass", "strings"), "Lead", 0.82),
+    (("hook", "riff", "pluck", "arp", "theme", "the_instrument"), "Hook", 0.84),
+    (("atmos", "atmo", "ambien", "texture", "pad", "pads", "drone", "foley", "noise"), "Atmosphere", 0.82),
+    (("vocal", "vocals", "voice", "vox", "vx", "acapella", "chant", "choir", "adlib", "adlibs"), "Vocal", 0.94),
+    (("riser", "sweep", "fx", "sfx", "impact", "downlifter", "uplifter", "whoosh", "transition"), "FX / Risers", 0.8),
+    (("reference", "ref"), "Reference", 0.96),
+    (("serum", "synth"), "Bass", 0.6),
+)
+# How far each place a word can come from is trusted, strongest first.
+ROLE_SOURCES = (("track name", 1.0), ("clip name", 0.85), ("device", 0.7))
+_DEVICE_CLASS_ROLES = {"DrumGroupDevice": ("Percussion", 0.6, "uses a Drum Rack")}
+
+
+def _word_pattern(word: str) -> re.Pattern[str]:
+    escaped = re.escape(word)
+    if len(word) <= 3:   # standalone, optionally plural: "hat"/"hats", "sub", "vox"
+        return re.compile(r"(?<![a-z])%ss?(?![a-z])" % escaped)
+    return re.compile(escaped)
+
+
+_RULE_PATTERNS = tuple((tuple((word, _word_pattern(word)) for word in words), role, confidence)
+                       for words, role, confidence in ROLE_RULES)
+
+
+def _match_role(text: str) -> tuple[str, float, str] | None:
+    for words, role, confidence in _RULE_PATTERNS:
+        for word, pattern in words:
+            if pattern.search(text):
+                return role, confidence, word
+    return None
+
+
 def _role_for(track: dict[str, Any]) -> tuple[str | None, float, str]:
-    """Return only deterministic suggestions; uncertainty stays explicit."""
-    name = str(track.get("name", "")).lower()
-    devices = " ".join(str(device.get("name", "")).lower() for device in track.get("devices", []) if isinstance(device, dict))
-    arr_clips = " ".join(str(clip.get("name", "")).lower() for clip in track.get("arrangement_clips", []) if isinstance(clip, dict))
-    sess_clips = " ".join(str(clip.get("name", "")).lower() for clip in track.get("session_clips", []) if isinstance(clip, dict))
-    text = " ".join(part for part in (name, devices, arr_clips, sess_clips) if part)
-    rules = (
-        (("kick",), "Kick", 0.98, "name/device contains kick"),
-        (("snare", "clap"), "Snare / Clap", 0.94, "name/device identifies snare or clap"),
-        (("hat", "cymbal", "top loop"), "Hats", 0.92, "name/device identifies hats or cymbals"),
-        (("perc", "shaker", "conga", "bongo", "drmlp", "drm", "drumloop", "drum", "break"), "Percussion", 0.88, "name/device identifies percussion"),
-        (("moog", "808", "reese", "donk", "bass", "sub"), "Bass", 0.92, "name/device identifies a bass source"),
-        (("chord", "piano", "keys", "operator", "electro", "studioverse", "stab"), "Chords", 0.78, "name/device identifies chordal material"),
-        (("lead",), "Lead", 0.90, "name/device identifies a lead"),
-        (("hook", "riff", "pluck", "arp", "the_instrument"), "Hook", 0.84, "name/device identifies a hook or riff"),
-        (("serum", "synth"), "Bass", 0.72, "name/device identifies a synth/bass source"),
-        (("atmos", "ambien", "texture", "pad"), "Atmosphere", 0.82, "name/device identifies atmosphere"),
-        (("vocal", "voice"), "Vocal", 0.94, "name/device identifies vocals"),
-        (("riser", "sweep", " fx", "fx "), "FX / Risers", 0.80, "name/device identifies transition FX"),
-        (("reference", "ref "), "Reference", 0.96, "name/device identifies reference audio"),
-    )
-    for terms, role, confidence, reason in rules:
-        if any(term in text for term in terms):
-            return role, confidence, reason
+    """Deterministic role guess with a confidence and a plain reason.
+
+    The track name is trusted over clip names, and clip names over device names, so a vocal
+    track named "Vox main" stays a Vocal even when one of its devices mentions keys."""
+    lane_role = str(track.get("name", "")).rpartition(" · ")[2]
+    if " · " in str(track.get("name", "")) and lane_role in {role for _group, role, _kind in TRACKS}:
+        # A drum lane made by splitting a Drum Rack ("808 kick kit · Hats") is exactly what its suffix says.
+        return lane_role, 0.99, "Drum lane for %s" % lane_role
+    devices = [device for device in track.get("devices", []) if isinstance(device, dict)]
+    clips = [clip for key in ("arrangement_clips", "session_clips")
+             for clip in track.get(key, []) if isinstance(clip, dict)]
+    texts = {
+        "track name": str(track.get("name", "")),
+        "clip name": " ".join(str(clip.get("name", "")) for clip in clips),
+        "device": " ".join(str(device.get("name", "")) for device in devices),
+    }
+    for source, trust in ROLE_SOURCES:
+        found = _match_role(texts[source].lower())
+        if found:
+            role, confidence, word = found
+            return role, round(confidence * trust, 2), '%s has "%s"' % (source.replace("track ", "").capitalize(), word)
+    for device in devices:
+        known = _DEVICE_CLASS_ROLES.get(str(device.get("class_name", "")))
+        if known:
+            return known[0], known[1], "Track %s" % known[2]
     return None, 0.0, "No deterministic role match"
 
 

@@ -40,28 +40,33 @@
     'Ignore / Unknown'
   ];
 
-  const GENRE_VARIANTS_MAP = {
-    'House': [
-      { id: 'club-version', name: 'Club version (4:39)', bars: 144 },
-      { id: 'streaming-edit', name: 'Streaming edit (3:15)', bars: 101 },
-      { id: 'dj-extended-mix', name: 'DJ extended mix (6:00)', bars: 186 }
-    ],
-    'Techno': [
-      { id: 'techno-peak-time', name: 'Peak time (~5:30)', bars: 170 },
-      { id: 'techno-hypnotic', name: 'Hypnotic (~5:00)', bars: 154 },
-      { id: 'techno-extended-dj', name: 'Extended DJ (~6:30)', bars: 201 }
-    ],
-    'Drum & Bass': [
-      { id: 'dnb-rolling-club', name: 'Rolling club (~4:00)', bars: 124 },
-      { id: 'dnb-quick-cut', name: 'Quick cut (~3:00)', bars: 93 },
-      { id: 'dnb-extended-journey', name: 'Extended journey (~5:00)', bars: 155 }
-    ],
-    'UK Garage': [
-      { id: 'ukg-vocal-club', name: 'Vocal club (~4:00)', bars: 124 },
-      { id: 'ukg-compact', name: 'Compact 2-step (~3:00)', bars: 93 },
-      { id: 'ukg-extended-shuffle', name: 'Extended shuffle (~5:00)', bars: 155 }
+  // The genre list comes from GET /api/production/genres. This copy is only used when the server
+  // cannot be reached, so the device still shows the four original structures.
+  const FALLBACK_CATALOGUE = {
+    default_genre: 'House',
+    genres: [
+      { genre: 'House', family: 'House & Disco', bpm_range: [120, 128], default_variant: 'club-version', variants: [
+        { id: 'streaming-edit', name: 'Streaming edit', target_duration: '3:15', target_duration_seconds: 195 },
+        { id: 'club-version', name: 'Club version', target_duration: '4:39', target_duration_seconds: 278.7 },
+        { id: 'dj-extended-mix', name: 'DJ extended mix', target_duration: '6:00', target_duration_seconds: 360 }] },
+      { genre: 'Techno', family: 'Techno & Trance', bpm_range: [125, 140], default_variant: 'techno-peak-time', variants: [
+        { id: 'techno-hypnotic', name: 'Hypnotic', target_duration: '5:00', target_duration_seconds: 300 },
+        { id: 'techno-peak-time', name: 'Peak time', target_duration: '5:30', target_duration_seconds: 330 },
+        { id: 'techno-extended-dj', name: 'Extended DJ', target_duration: '6:30', target_duration_seconds: 390 }] },
+      { genre: 'Drum & Bass', family: 'Breaks & Bass', bpm_range: [170, 180], default_variant: 'dnb-rolling-club', variants: [
+        { id: 'dnb-quick-cut', name: 'Quick cut', target_duration: '3:00', target_duration_seconds: 180 },
+        { id: 'dnb-rolling-club', name: 'Rolling club', target_duration: '4:00', target_duration_seconds: 240 },
+        { id: 'dnb-extended-journey', name: 'Extended journey', target_duration: '5:00', target_duration_seconds: 300 }] },
+      { genre: 'UK Garage', family: 'Breaks & Bass', bpm_range: [128, 136], default_variant: 'ukg-vocal-club', variants: [
+        { id: 'ukg-compact', name: 'Compact 2-step', target_duration: '3:00', target_duration_seconds: 180 },
+        { id: 'ukg-vocal-club', name: 'Vocal club', target_duration: '4:00', target_duration_seconds: 240 },
+        { id: 'ukg-extended-shuffle', name: 'Extended shuffle', target_duration: '5:00', target_duration_seconds: 300 }] }
     ]
   };
+  let genreCatalogue = FALLBACK_CATALOGUE;
+  let lastLabelTempo = null;
+  let selectionSeenAt = 0;         // server time of the newest shared genre/variant choice this view has applied
+  let selectionPosting = false;
 
   // --- DOM Elements ---
   const elConnectionPill = document.getElementById('connectionPill');
@@ -231,11 +236,22 @@
   // Precedence: this session's choice > exact-revision confirmation > remembered for this Set > name guess.
   function resolveRole(track) {
     const remembered = rememberedRoles[track.id];
+    if (track.split_into_lanes && !userStemOverrides[track.id]) return 'Ignore / Unknown'; // its drum lanes play instead
     return userStemOverrides[track.id]
       || (activeRoles && activeRoles.roles ? activeRoles.roles[track.id] : null)
       || (remembered ? (remembered.role || 'Ignore / Unknown') : null)
       || track.suggested_role || inferRoleFromName(track.name)
       || 'Ignore / Unknown';
+  }
+
+  // Every stem's role exactly as the list shows it, so the scaffold uses what the producer sees
+  // (the server's own name guess can differ from the device's).
+  function shownRoles() {
+    const roles = { ...userStemOverrides };
+    ((analysis && analysis.tracks) || []).forEach(track => {
+      if (track && track.id && !(track.id in roles)) roles[track.id] = resolveRole(track);
+    });
+    return roles;
   }
 
   async function refreshRoleMemory() {
@@ -271,6 +287,92 @@
     drawEnergyCurve();
   });
 
+  // A remembered role Vibelton is not sure still belongs to this track.
+  function reviewNote(remembered) {
+    return remembered.matched_by === 'order'
+      ? 'Remembered from a same-named track — check this role'
+      : 'Remembered by position — check this role';
+  }
+
+  // --- Drum Rack splitting: one lane per drum role (step 1 drafts, step 2 sends to Live) ---
+  let pendingSplit = null;   // { trackId, plan }
+
+  async function prepareDrumSplit(track) {
+    if (isBusy) return;
+    if (!workingCopyGate.allowed || !workingCopyConfirmed) {
+      elStatusFeedback.textContent = workingCopyGate.allowed ? 'Confirm the working copy before splitting drums.' : workingCopyGate.message;
+      elStatusFeedback.className = 'status-feedback error';
+      return;
+    }
+    try {
+      clearFailure();
+      const plan = await api('/api/production/drum-split-plan', 'POST', { track_id: track.id });
+      pendingSplit = { trackId: track.id, plan };
+    } catch (err) {
+      pendingSplit = null;
+      showFailure(err, 'Could not prepare the drum split.');
+    }
+    renderStems();
+  }
+
+  function drumSplitConfirm(pending) {
+    const box = document.createElement('div');
+    box.className = 'stem-split-confirm';
+    const lanes = pending.plan.lanes || [];
+    const text = document.createElement('div');
+    text.textContent = `Make ${lanes.length} lanes: ` +
+      lanes.map(l => `${l.role} (${l.pads.map(p => p.name || 'note ' + p.note).join(', ')})`).join(' · ');
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'stem-split-go';
+    go.textContent = 'Split';
+    go.addEventListener('click', () => applyDrumSplit(pending));
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => { pendingSplit = null; renderStems(); });
+    box.append(text, go, cancel);
+    return box;
+  }
+
+  async function applyDrumSplit(pending) {
+    if (isBusy) return;
+    isBusy = true;
+    pendingSplit = null;
+    updateScaffoldButtonState();
+    renderStems();
+    elStatusFeedback.textContent = `Splitting ${pending.plan.source_track_name}…`;
+    elStatusFeedback.className = 'status-feedback';
+    try {
+      const job = await api('/api/production/apply', 'POST', { plan_id: pending.plan.id, working_copy_confirmed: true });
+      currentPlan = pending.plan;
+      lastAppliedJob = job;
+      let done = false;
+      for (let i = 0; i < 20 && !done; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        const statusData = await api(`/api/production/status/${job.id}`);
+        if (statusData.status === 'Applied') {
+          lastAppliedJob = statusData;
+          done = true;
+        } else if (['Failed', 'Interrupted', 'Partial failure'].includes(statusData.status)) {
+          throw jobFailure(statusData, `Drum split failed with status: ${statusData.status}`);
+        }
+      }
+      const lanes = (pending.plan.lanes || []).length;
+      elStatusFeedback.textContent = done
+        ? `✓ Split ${pending.plan.source_track_name} into ${lanes} lanes and muted the original. Undo removes them.`
+        : 'Sent to Live. Press Refresh to check the new lanes.';
+      elStatusFeedback.className = done ? 'status-feedback success' : 'status-feedback';
+    } catch (err) {
+      if (err.job && err.explanation && err.explanation.undo_available) lastAppliedJob = err.job;
+      showFailure(err, 'Could not split the drum track.');
+    } finally {
+      isBusy = false;
+      updateScaffoldButtonState();
+      await refreshAllData();
+    }
+  }
+
   // --- Step 1: Render Stems ---
   function renderStems() {
     if (!analysis || !analysis.tracks) {
@@ -297,17 +399,34 @@
       const suggested = track.suggested_role || inferRoleFromName(track.name);
       const role = resolveRole(track);
 
-      // Confidence
+      // Confidence: your own choices are certain; a guess is as sure as the server says.
+      const guessed = 'role_confidence' in track ? Number(track.role_confidence) || 0 : (suggested ? 0.6 : 0);
       let confClass = 'conf-med';
-      if (override || confirmed || (remembered && !remembered.needs_review)) {
+      let why;
+      if (track.split_into_lanes && !override) {
         confClass = 'conf-high';
-      } else if (!suggested && !remembered) {
+        why = `Split into ${track.split_into_lanes} drum lanes; the lanes play instead`;
+      } else if (override || confirmed || (remembered && !remembered.needs_review)) {
+        confClass = 'conf-high';
+        why = override ? 'You chose this role' : confirmed ? 'Confirmed role' : 'Remembered for this Set';
+      } else if (remembered) {
+        why = reviewNote(remembered);
+      } else if (!suggested) {
         confClass = 'conf-low';
+        why = 'No clue in the track, clip or device names — pick a role';
+      } else {
+        confClass = guessed >= 0.85 ? 'conf-high' : guessed >= 0.6 ? 'conf-med' : 'conf-low';
+        why = `Guess ${Math.round(guessed * 100)}% · ${(track.role_reason || 'from the track name').replace(/^\w/, c => c.toLowerCase())}`;
       }
       const memoryNote = remembered && !override
-        ? (remembered.needs_review ? 'Remembered by position — check this role'
+        ? (remembered.needs_review ? reviewNote(remembered)
            : remembered.renamed_from ? `Remembered (was "${remembered.renamed_from}")` : 'Remembered for this Set')
         : '';
+
+      // A Drum Rack the bridge doesn't describe means Live is still running an older Vibelton script.
+      if (!('drum_rack' in track) && (track.devices || []).some(d => d.class_name === 'DrumGroupDevice')) {
+        why = `Restart Live to enable ✂ Split · ${why}`;
+      }
 
       // Clip summary
       const arrClips = track.arrangement_clips || [];
@@ -325,14 +444,20 @@
       row.className = 'stem-row';
       row.innerHTML = `
         <div class="stem-track-info" title="${escapeHtml(track.name)} (${clipInfo})${memoryNote ? ' — ' + escapeHtml(memoryNote) : ''}">
-          <span class="confidence-indicator ${confClass}" title="Role confidence"></span>
+          <span class="confidence-indicator ${confClass}" title="${escapeHtml(why)}"></span>
           <span class="stem-track-name">${escapeHtml(track.name)}</span>
           <span class="stem-source-badge">${clipInfo}</span>
+          ${track.drum_split_preview && !isBusy ? `<button type="button" class="stem-split-btn" title="Put each drum sound on its own lane: ${escapeHtml(track.drum_split_preview.map(l => l.role).join(', '))}">✂ Split</button>` : ''}
+          <span class="stem-role-reason">${escapeHtml(why)}</span>
         </div>
         <select class="stem-role-select" data-track-id="${track.id}">
           ${ALL_ROLES.map(r => `<option value="${r}" ${r === role ? 'selected' : ''}>${r}</option>`).join('')}
         </select>
       `;
+
+      const splitButton = row.querySelector('.stem-split-btn');
+      if (splitButton) splitButton.addEventListener('click', () => prepareDrumSplit(track));
+      if (pendingSplit && pendingSplit.trackId === track.id) row.appendChild(drumSplitConfirm(pendingSplit));
 
       const select = row.querySelector('.stem-role-select');
       select.addEventListener('change', (e) => {
@@ -348,51 +473,160 @@
   }
 
   // --- Step 2: Genre Energy Profile & SVG Curve ---
+  function genreEntry(genre = selectedGenre) {
+    return genreCatalogue.genres.find(g => g.genre === genre) || null;
+  }
+
+  function formatSeconds(seconds) {
+    const total = Math.round(Number(seconds) || 0);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+  }
+
+  function liveTempo() {
+    return (liveState && Number(liveState.tempo)) ? Number(liveState.tempo) : null;
+  }
+
+  // Bars and duration for a variant: the server's map for this Set once loaded, otherwise an estimate.
+  function variantFacts(variant) {
+    const planned = genreOptions && genreOptions.genre === selectedGenre && genreOptions.variants
+      ? genreOptions.variants.find(v => v.id === variant.id) : null;
+    if (planned) {
+      return { bars: planned.total_bars, duration: formatSeconds(planned.approximate_duration_seconds) };
+    }
+    const tempo = liveTempo() || 120;
+    return { bars: Math.round(variant.target_duration_seconds * tempo / 240), duration: variant.target_duration };
+  }
+
+  function renderGenreSelect() {
+    elGenreSelect.replaceChildren();
+    const families = [];
+    genreCatalogue.genres.forEach(g => {
+      let group = families.find(f => f.label === g.family);
+      if (!group) {
+        group = document.createElement('optgroup');
+        group.label = g.family || 'Other';
+        families.push(group);
+        elGenreSelect.appendChild(group);
+      }
+      const opt = document.createElement('option');
+      opt.value = g.genre;
+      opt.textContent = g.genre;
+      group.appendChild(opt);
+    });
+    if (!genreEntry()) selectedGenre = genreCatalogue.default_genre || genreCatalogue.genres[0]?.genre || 'House';
+    elGenreSelect.value = selectedGenre;
+  }
+
   function populateVariantsDropdown() {
-    const variants = GENRE_VARIANTS_MAP[selectedGenre] || [];
+    const entry = genreEntry();
+    const variants = entry ? entry.variants : [];
+    if (!variants.some(v => v.id === selectedVariant)) {
+      selectedVariant = (entry && entry.default_variant) || variants[0]?.id || '';
+    }
     elVariantSelect.innerHTML = '';
     variants.forEach(v => {
       const opt = document.createElement('option');
       opt.value = v.id;
-      opt.textContent = v.name;
+      opt.textContent = `${v.name} (${variantFacts(v).duration})`;
       if (v.id === selectedVariant) opt.selected = true;
       elVariantSelect.appendChild(opt);
     });
-    if (!variants.some(v => v.id === selectedVariant)) {
-      selectedVariant = variants[0]?.id || '';
-    }
     updateScaffoldButtonLabel();
   }
 
   function updateScaffoldButtonLabel() {
-    const variants = GENRE_VARIANTS_MAP[selectedGenre] || [];
-    const curr = variants.find(v => v.id === selectedVariant);
-    const duration = curr ? curr.name.split('(')[1]?.replace(')', '') || '4-Min' : '4-Min';
-    elScaffoldBtnLabel.dataset.whole = `Scaffold ${duration} Arrangement`;
+    const entry = genreEntry();
+    const curr = entry ? entry.variants.find(v => v.id === selectedVariant) : null;
+    const facts = curr ? variantFacts(curr) : { bars: 144, duration: '4:39' };
+    elScaffoldBtnLabel.dataset.whole = `Scaffold ${facts.duration} Arrangement`;
     elScaffoldBtnLabel.textContent = selectedScope ? elScaffoldBtnLabel.textContent : elScaffoldBtnLabel.dataset.whole;
 
-    const bars = curr ? curr.bars : 144;
-    const tempo = (liveState && liveState.tempo) ? Math.round(liveState.tempo) : 119;
+    const tempo = liveTempo();
+    const shownTempo = tempo ? Math.round(tempo) : 119;
     const variantMetaSpan = document.getElementById('variantMetaSpan');
     if (variantMetaSpan) {
-      variantMetaSpan.textContent = `${selectedGenre} · ${bars} bars (${duration}) · 7 arrangement sections`;
+      let tempoNote = '';
+      if (entry && entry.bpm_range) {
+        const [low, high] = entry.bpm_range;
+        const outside = tempo && (tempo < low - 0.5 || tempo > high + 0.5);
+        tempoNote = outside ? ` · usually ${low}–${high} BPM (your Set: ${shownTempo})` : ` · usually ${low}–${high} BPM`;
+      }
+      variantMetaSpan.textContent = `${selectedGenre} · ${facts.bars} bars (${facts.duration}) · 7 sections${tempoNote}`;
     }
     const statDuration = document.getElementById('statDuration');
     if (statDuration) {
-      statDuration.textContent = `${bars} bars (${duration} @ ${tempo} BPM)`;
+      statDuration.textContent = `${facts.bars} bars (${facts.duration} @ ${shownTempo} BPM)`;
     }
     const statStructure = document.getElementById('statStructure');
     if (statStructure) {
-      statStructure.textContent = `${selectedGenre} (${curr?.name.split(' (')[0] || 'Club version'})`;
+      statStructure.textContent = `${selectedGenre} (${curr ? curr.name : 'Club version'})`;
     }
+  }
+
+  // The docked device and the pop-out are separate pages; the server keeps the one genre/variant
+  // choice both show. Each view sends its own changes and picks up the other's on the heartbeat.
+  async function shareSelection() {
+    selectionPosting = true;
+    try {
+      const saved = await api('/api/production/arranger-selection', 'POST', { genre: selectedGenre, variant_id: selectedVariant });
+      selectionSeenAt = Math.max(selectionSeenAt, Number(saved.updated_at) || 0);
+    } catch (err) {
+      console.warn('Could not share the genre choice with the other Arranger view', err);
+    } finally {
+      selectionPosting = false;
+    }
+  }
+
+  // Returns true when it switched this view to a choice made in the other view.
+  async function syncSelection() {
+    if (selectionPosting || isBusy) return false;
+    let shared;
+    try {
+      shared = await api('/api/production/arranger-selection');
+    } catch (err) {
+      return false;
+    }
+    if (selectionPosting || !shared.genre || !(Number(shared.updated_at) > selectionSeenAt)) return false;
+    const entry = genreEntry(shared.genre);
+    // Not in this view's genre list yet (it is still loading): leave it unseen and try again next heartbeat.
+    if (!entry || !entry.variants.some(v => v.id === shared.variant_id)) return false;
+    selectionSeenAt = Number(shared.updated_at);
+    if (shared.genre === selectedGenre && shared.variant_id === selectedVariant) return false;
+    const genreChanged = shared.genre !== selectedGenre;
+    selectedGenre = shared.genre;
+    selectedVariant = shared.variant_id;
+    elGenreSelect.value = selectedGenre;
+    if (genreChanged) genreOptions = null;
+    populateVariantsDropdown();
+    drawEnergyCurve();
+    if (genreChanged) loadGenreOptions();
+    refreshScaffoldedSections();
+    return true;
+  }
+
+  async function loadGenreCatalogue() {
+    try {
+      const catalogue = await api('/api/production/genres');
+      if (catalogue && Array.isArray(catalogue.genres) && catalogue.genres.length) {
+        genreCatalogue = catalogue;
+      }
+    } catch (err) {
+      console.warn('Failed to fetch the genre list from the server, using the built-in list', err);
+    }
+    renderGenreSelect();
+    populateVariantsDropdown();
   }
 
   async function loadGenreOptions() {
     try {
-      genreOptions = await api(`/api/production/arrangement-options`, 'POST', {
+      const requestedGenre = selectedGenre;
+      const options = await api(`/api/production/arrangement-options`, 'POST', {
         request_id: crypto.randomUUID(),
-        genre: selectedGenre
+        genre: requestedGenre
       });
+      if (requestedGenre !== selectedGenre) return; // the user switched genre while this was loading
+      genreOptions = options;
+      populateVariantsDropdown();
       drawEnergyCurve();
     } catch (err) {
       console.warn('Failed to fetch arrangement options from server, using fallback', err);
@@ -676,7 +910,7 @@
         genre: selectedGenre,
         variant_id: selectedVariant,
         snapshot_name: `Before ${selectedGenre} ${selectedVariant} Scaffold`,
-        roles: userStemOverrides,
+        roles: shownRoles(),
         ...(selectedScope ? { section: selectedScope } : {})
       };
 
@@ -1108,6 +1342,7 @@
       const statusRes = await api('/api/status');
       setServerOffline(false);
       liveState = statusRes.state || {};
+      await syncSelection();
       
       const isConnected = Boolean(liveState.connected);
       const tempo = Math.round(Number(liveState.tempo || 120));
@@ -1115,6 +1350,10 @@
       if (isConnected) {
         elConnectionPill.className = 'connection-pill is-connected';
         elConnectionText.textContent = `● Connected ${tempo} BPM`;
+        if (tempo !== lastLabelTempo) {
+          lastLabelTempo = tempo;
+          updateScaffoldButtonLabel(); // the tempo hint and bar estimate depend on the Set's tempo
+        }
       } else {
         elConnectionPill.className = 'connection-pill is-offline';
         elConnectionText.textContent = `Offline (Live closed)`;
@@ -1167,14 +1406,21 @@
 
   elGenreSelect.addEventListener('change', (e) => {
     selectedGenre = e.target.value;
+    genreOptions = null;
+    selectedVariant = genreEntry()?.default_variant || '';
     populateVariantsDropdown();
+    drawEnergyCurve();
     loadGenreOptions();
+    refreshScaffoldedSections();
+    shareSelection();
   });
 
   elVariantSelect.addEventListener('change', (e) => {
     selectedVariant = e.target.value;
     updateScaffoldButtonLabel();
     drawEnergyCurve();
+    refreshScaffoldedSections();
+    shareSelection();
   });
 
   elWorkingCopyCheck.addEventListener('change', (e) => {
@@ -1211,7 +1457,16 @@
       menu = document.createElement('div');
       menu.className = 'select-menu';
       menu.setAttribute('role', 'listbox');
+      let lastGroup = null;
       Array.from(select.options).forEach(option => {
+        const group = option.parentElement && option.parentElement.tagName === 'OPTGROUP' ? option.parentElement : null;
+        if (group && group !== lastGroup) {
+          const header = document.createElement('div');
+          header.className = 'select-menu-group';
+          header.textContent = group.label;
+          menu.appendChild(header);
+        }
+        lastGroup = group;
         const item = document.createElement('div');
         item.className = 'select-menu-item';
         item.setAttribute('role', 'option');
@@ -1277,9 +1532,12 @@
   }
 
   // --- Initialization ---
+  renderGenreSelect();
   populateVariantsDropdown();
   refreshAllData();
-  loadGenreOptions();
+  loadGenreCatalogue()
+    .then(syncSelection)
+    .then(switched => { if (!switched) loadGenreOptions(); });
 
   refreshVersions();
   setInterval(refreshVersions, 30000);

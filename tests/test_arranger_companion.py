@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from vibelton import errors
 from vibelton import production
 from vibelton import queue
 
@@ -177,6 +178,12 @@ class ArrangerCompanionTests(unittest.TestCase):
 
         # JS checks
         self.assertIn('executeScaffold', js)
+        # The genre list comes from the server; the built-in list is only a fallback.
+        self.assertIn('/api/production/genres', js)
+        self.assertNotIn('GENRE_VARIANTS_MAP', js)
+        self.assertIn('/api/production/arranger-selection', js)
+        self.assertIn('roles: shownRoles()', js)
+        self.assertIn('select-menu-group', css)
         self.assertIn('executeRollback', js)
         self.assertIn('drawEnergyCurve', js)
 
@@ -237,6 +244,123 @@ class ArrangerCompanionTests(unittest.TestCase):
         plan = production.create_scaffold_plan({'genre': 'House', 'variant_id': 'club-version'})
         with self.assertRaisesRegex(ValueError, 'working copy'):
             production.execute({'plan_id': plan['id'], 'working_copy_confirmed': False})
+
+    def test_new_genres_scaffold_into_live_plans(self) -> None:
+        for genre, variant in (('Boom Bap', 'boombap-two-verses'), ('Grime', 'grime-instrumental'),
+                               ('Hyperpop', 'hyperpop-single'), ('Trance', 'trance-epic-breakdown')):
+            with self.subTest(genre=genre):
+                plan = production.create_scaffold_plan({'genre': genre, 'variant_id': variant})
+                self.assertEqual('apply_arrangement_copies', plan['actions'][0]['type'])
+                self.assertTrue(plan['actions'][0]['copies'])
+
+    def test_full_arrangement_is_reported_in_plain_language(self) -> None:
+        # Earlier scaffolds stacked to bar 872; a new one would pass the 900-bar placement limit.
+        self.state['arrangement_end'] = self.state['production']['arrangement_end'] = 3488.0
+        with self.assertRaises(ValueError) as caught:
+            production.create_scaffold_plan({'genre': 'Boom Bap', 'variant_id': 'boombap-long-verses'})
+        self.assertIn('bar 872', str(caught.exception))
+        explanation = errors.explain(str(caught.exception))
+        self.assertEqual('arrangement_full', explanation['code'])
+        self.assertIn('Undo earlier scaffolds', explanation['next_step'])
+
+    def _make_session_only_set(self, extra_leads: int = 12) -> None:
+        # Like a fresh Set: no Arrangement clips, Session loops on more tracks than one plan takes.
+        self.state['capabilities'].append('session_scene_v1')
+        production_state = self.state['production']
+        production_state['scene_names'] = ['Scene %d' % (n + 1) for n in range(9)]
+        for index, track in enumerate(production_state['tracks']):
+            track['session_clips'] = [dict(track['arrangement_clips'][0], scene_index=index % 4)]
+            track['arrangement_clips'] = []
+        for n in range(extra_leads):
+            production_state['tracks'].append({
+                'id': 'trk-guitar-%d' % n, 'name': '%d-Guitar' % (n + 5), 'type': 'midi',
+                'mixer': {'volume': 0.7, 'pan': 0.0, 'sends': [0.0]}, 'devices': [], 'routing': 'Main',
+                'arrangement_clips': [],
+                'session_clips': [{'name': 'Riff', 'scene_index': 2, 'start_beat': 0.0, 'end_beat': 64.0,
+                                   'length': 64.0, 'fingerprint': ('%02x' % n) * 32}]})
+        # A 104-bar vocal can't be tiled into sections, so it is reported rather than used.
+        production_state['tracks'].append({
+            'id': 'trk-vox', 'name': 'Vox main', 'type': 'audio',
+            'mixer': {'volume': 0.7, 'pan': 0.0, 'sends': [0.0]}, 'devices': [], 'routing': 'Main',
+            'arrangement_clips': [],
+            'session_clips': [{'name': 'Vox', 'scene_index': 0, 'length': 416.0, 'fingerprint': 'v' * 64}]})
+
+    def test_session_only_set_scaffolds_into_the_arrangement(self) -> None:
+        self._make_session_only_set()
+        roles = {'trk-guitar-%d' % n: 'Lead' for n in range(12)}
+        roles['trk-vox'] = 'Vocal'
+        plan = production.create_scaffold_plan({'genre': 'Boom Bap', 'variant_id': 'boombap-long-verses', 'roles': roles})
+        action = plan['actions'][0]
+        self.assertEqual('apply_session_to_arrangement_copies', action['type'])
+        self.assertEqual('session', plan['source_view'])
+        self.assertTrue(all(copy['destination_beat'] % 4 == 0 for copy in action['copies']))
+        self.assertEqual(action['expected_end_beat'], max(c['destination_beat'] for c in action['copies']) + 64.0)
+        used = {(item['role'], item['track_name']) for item in plan['source_coverage']}
+        leads = {name for role, name in used if role == 'Lead'}
+        # 4 original stems + 12 guitars = 16 tracks, the per-scaffold limit, so every guitar layers in.
+        self.assertEqual(12, len(leads))
+        layers = {item['layer'] for item in plan['source_coverage'] if item['role'] == 'Lead'}
+        self.assertIn('1 of 12', layers)
+        reasons = [item['reason'] for item in plan['skipped_sources']]
+        self.assertEqual(['longer_than_16_bars'], reasons)
+
+        job = production.execute({'plan_id': plan['id'], 'working_copy_confirmed': True})
+        self.assertEqual('Queued', job['status'])
+        exec_dir = self.root / 'queue' / 'production-executions'
+        exec_dir.mkdir(parents=True, exist_ok=True)
+        (exec_dir / (job['id'] + '.json')).write_text(json.dumps({
+            'job_id': job['id'], 'status': 'Applied', 'completed_actions': len(action['copies']),
+            'created_copies': action['copies'], 'post_revision': 'rev-arr-2'}), encoding='utf-8')
+        self.state['production']['revision'] = 'rev-arr-2'
+        tracks = {t['id']: t for t in self.state['production']['tracks']}
+        for item in action['copies']:
+            source = tracks[item['track_id']]['session_clips'][0]
+            tracks[item['track_id']]['arrangement_clips'].append({
+                'name': source['name'], 'start_beat': item['destination_beat'],
+                'end_beat': item['destination_beat'] + source['length'], 'length': source['length'],
+                'fingerprint': item['source_fingerprint']})
+        rollback_job = production.rollback_plan(plan['id'], {'working_copy_confirmed': True})
+        rollback = production.get_plan(rollback_job['plan_id'])['actions'][0]
+        self.assertEqual('rollback_session_to_arrangement_copies', rollback['type'])
+        self.assertEqual(len(action['copies']), len(rollback['copies']))
+
+    def test_session_scenes_are_still_available_on_request(self) -> None:
+        self._make_session_only_set()
+        roles = {'trk-guitar-%d' % n: 'Lead' for n in range(12)}
+        plan = production.create_scaffold_plan({'genre': 'Boom Bap', 'variant_id': 'boombap-long-verses',
+                                                'roles': roles, 'view': 'session'})
+        self.assertEqual('apply_session_scene_map', plan['actions'][0]['type'])
+        # A scene plan still takes one track per role.
+        self.assertTrue(all(item['reason'] == 'role_already_used' for item in plan['skipped_sources']))
+        self.assertEqual(11, len(plan['skipped_sources']))
+
+    def test_analysis_carries_the_role_guess_the_scaffold_uses(self) -> None:
+        tracks = {t['name']: t for t in production.analyse()['tracks']}
+        self.assertEqual('Kick', tracks['1-Kick']['suggested_role'])
+        self.assertGreater(tracks['1-Kick']['role_confidence'], 0.9)
+        self.assertIn('kick', tracks['1-Kick']['role_reason'])
+
+    def test_tracks_beyond_the_source_limit_are_reported(self) -> None:
+        self._make_session_only_set(extra_leads=20)
+        roles = {'trk-guitar-%d' % n: 'Lead' for n in range(20)}
+        plan = production.create_scaffold_plan({'genre': 'House', 'variant_id': 'club-version', 'roles': roles})
+        used = {item['track_name'] for item in plan['source_coverage']}
+        self.assertEqual(production.MAX_SCAFFOLD_SOURCES, len(used))
+        self.assertEqual(8, [item['reason'] for item in plan['skipped_sources']].count('source_limit'))
+        self.assertIn('16-track limit', plan['warnings'][-1])
+
+    def test_docked_and_popout_share_one_selection(self) -> None:
+        self.assertIsNone(production.arranger_selection()['genre'])
+        first = production.save_arranger_selection({'genre': 'Boom Bap', 'variant_id': 'boombap-long-verses'})
+        self.assertEqual({'genre': 'Boom Bap', 'variant_id': 'boombap-long-verses'},
+                         {k: production.arranger_selection()[k] for k in ('genre', 'variant_id')})
+        second = production.save_arranger_selection({'genre': 'House', 'variant_id': 'club-version'})
+        self.assertGreater(second['updated_at'], first['updated_at'])
+        self.assertEqual('House', production.arranger_selection()['genre'])
+        with self.assertRaises(ValueError):
+            production.save_arranger_selection({'genre': 'House', 'variant_id': 'boombap-long-verses'})
+        with self.assertRaises(ValueError):
+            production.save_arranger_selection({'genre': 'Polka', 'variant_id': 'club-version'})
 
 
 if __name__ == '__main__':

@@ -247,6 +247,7 @@ html, body {
 
 .stem-row {
   display: flex;
+  flex-wrap: wrap;   /* lets a drum split confirmation take its own line */
   align-items: center;
   justify-content: space-between;
   background-color: var(--bg-surface);
@@ -897,7 +898,82 @@ html, body {
   font-weight: 700;
 }
 
+.select-menu-group {
+  padding: 4px 10px 1px;
+  color: #8a8a8a;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: default;
+}
+
 .select-menu-item.is-disabled {
   color: #666666;
   cursor: default;
+}
+
+/* Why a role was chosen: a tooltip in the docked device, a short line in the pop-out. */
+.stem-role-reason {
+  display: none;
+}
+
+body.is-popout .stem-role-reason {
+  display: block;
+  flex-basis: 100%;
+  color: #8a8a8a;
+  font-size: 0.8em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.is-popout .stem-track-info {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+
+/* Drum Rack splitting */
+.stem-split-btn {
+  flex: none;
+  padding: 0 5px;
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: var(--accent-yellow);
+  background: transparent;
+  border: 1px solid rgba(230, 215, 101, 0.5);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.stem-split-btn:hover {
+  background-color: rgba(230, 215, 101, 0.15);
+}
+
+.stem-split-confirm {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 4px 0 2px;
+  font-size: 0.85em;
+  color: var(--text-main, #e6e6e6);
+}
+
+.stem-split-confirm > div {
+  flex-basis: 100%;
+}
+
+.stem-split-confirm button {
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #555;
+  background: #2a2a2a;
+  color: inherit;
+  cursor: pointer;
+}
+
+.stem-split-confirm .stem-split-go {
+  border-color: var(--accent-yellow);
+  color: var(--accent-yellow);
 }
